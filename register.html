@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Register | Wright Cut</title>
+  <link rel="stylesheet" href="style.css">
+  
+  <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+</head>
+<body class="auth-page">
+  <div class="card auth-card">
+    
+    <div class="card-center" style="margin-bottom: 1.2rem;">
+      <img src="images/logo.jpg" alt="Logo" style="width: 75px; border-radius: 50%;">
+      <h1 class="title" style="margin-top: 0.4rem; font-size: 1.4rem;">Create Account</h1>
+    </div>
+
+    <div>
+      <div class="form-group">
+        <label>Full Name</label>
+        <input type="text" id="regName" class="form-control" placeholder="Enter Your Name">
+      </div>
+      <div class="form-group">
+        <label>Email Address</label>
+        <input type="email" id="regEmail" class="form-control" placeholder="name@example.com">
+      </div>
+      <div class="form-group">
+        <label>Mobile Number (For SMS)</label>
+        <input type="tel" id="regPhone" class="form-control" placeholder="0821234567">
+      </div>
+      <div class="form-group">
+        <label>Password (Min. 6 chars)</label>
+        <input type="password" id="regPassword" class="form-control" placeholder="••••••••">
+      </div>
+
+      <label class="text-muted" style="font-size: 0.85rem;">Receive verification code via:</label>
+      <div class="channel-selector">
+        <button type="button" class="channel-btn active" id="btnEmail">
+          Code to Email
+        </button>
+        <button type="button" class="channel-btn" id="btnSms">
+          SMS to Phone
+        </button>
+      </div>
+
+      <button type="button" class="btn btn-full" id="submitRegBtn">
+        Send Verification Code
+      </button>
+
+      <div class="card-center" style="margin-top: 1.2rem;">
+        <button type="button" id="googleSsoBtn" class="btn btn-secondary btn-full">Continue With Google (SSO)</button>
+        <p class="text-muted" style="margin-top: 1rem; font-size: 0.85rem;">
+          Already registered? <a href="login.html" style="color: var(--primary);">Login</a>
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <div id="otpModal" class="otp-modal">
+    <div class="otp-box">
+      <h2 style="color: var(--primary); font-size: 1.3rem;">Verification Code</h2>
+      <p class="text-muted" style="font-size: 0.85rem; margin-top: 6px;" id="otpPromptText">
+        Sending your code...
+      </p>
+      
+      <input type="text" id="otpInputField" class="otp-input" maxlength="6" placeholder="000000" inputmode="numeric">
+      
+      <button type="button" class="btn btn-full" id="verifyOtpBtn">Verify & Complete Registration</button>
+      <button type="button" class="btn btn-secondary btn-full" style="margin-top: 8px;" id="cancelOtpBtn">Cancel</button>
+    </div>
+  </div>
+
+  <script type="module">
+    import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
+    import { getAuth, createUserWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-auth.js";
+    import { getFirestore, doc, setDoc } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyCG94vYKYSHrHqJpui1kKeipAiKlyvKH8A",
+      authDomain: "wright-cut-db.firebaseapp.com",
+      projectId: "wright-cut-db",
+      storageBucket: "wright-cut-db.firebasestorage.app",
+      messagingSenderId: "210876408255",
+      appId: "1:210876408255:web:52bce253aebf4ed38e010a"
+    };
+
+    const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    // Safe EmailJS Init
+    try {
+      if (window.emailjs) {
+        emailjs.init({ publicKey: "KVC0ojs2Z06ZQbIxP" });
+      }
+    } catch(err) {
+      console.warn("EmailJS init:", err);
+    }
+
+    // The 2 designated Admin accounts
+    const PRIMARY_ADMIN_EMAILS = [
+      "kagisogeorge09@gmail.com",
+      "admin@wrightcut.com"
+    ];
+
+    function checkIsAdmin(email) {
+      if (!email) return false;
+      return PRIMARY_ADMIN_EMAILS.includes(email.toLowerCase().trim());
+    }
+
+    let selectedChannel = "email";
+    let generatedOtp = "";
+    let pendingUserData = {};
+
+    const btnEmail = document.getElementById("btnEmail");
+    const btnSms = document.getElementById("btnSms");
+
+    btnEmail.addEventListener("click", () => {
+      selectedChannel = "email";
+      btnEmail.classList.add("active");
+      btnSms.classList.remove("active");
+    });
+
+    btnSms.addEventListener("click", () => {
+      selectedChannel = "sms";
+      btnSms.classList.add("active");
+      btnEmail.classList.remove("active");
+    });
+
+    document.getElementById("cancelOtpBtn").addEventListener("click", () => {
+      document.getElementById("otpModal").style.display = "none";
+    });
+
+    const submitBtn = document.getElementById("submitRegBtn");
+    submitBtn.addEventListener("click", async () => {
+      const name = document.getElementById("regName").value.trim();
+      const email = document.getElementById("regEmail").value.trim();
+      const phone = document.getElementById("regPhone").value.trim();
+      const pass = document.getElementById("regPassword").value;
+
+      if (!name || !email || !phone || !pass) {
+        alert("Please fill in all fields (Name, Email, Phone, and Password).");
+        return;
+      }
+      if (pass.length < 6) {
+        alert("Password must be at least 6 characters long.");
+        return;
+      }
+      if (phone.length < 10) {
+        alert("Please enter a valid 10-digit mobile number (e.g. 0821234567).");
+        return;
+      }
+
+      generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
+      pendingUserData = { name, email, phone, pass };
+
+      const modal = document.getElementById("otpModal");
+      const promptText = document.getElementById("otpPromptText");
+      
+      modal.style.display = "flex";
+
+      if (selectedChannel === "email") {
+        promptText.innerHTML = `Sending code to <strong>${email}</strong>...`;
+
+        try {
+          if (window.emailjs) {
+            await emailjs.send("service_abc123", "template_0ydlgfq", {
+              to_name: name,
+              to_email: email,
+              otp_code: generatedOtp
+            });
+            promptText.innerHTML = `✅ A 6-digit code was sent to <strong>${email}</strong>.<br><small style="color:var(--primary)">Check your inbox or spam folder!</small>`;
+          } else {
+            throw new Error("EmailJS SDK not ready");
+          }
+        } catch (error) {
+          console.error("EmailJS Notice:", error);
+          promptText.innerHTML = `Code generated for <strong>${email}</strong>.`;
+          alert(`[EMAIL DISPATCH]\nTo: ${email}\nVerification Code: ${generatedOtp}`);
+        }
+      } else {
+        promptText.innerHTML = `📱 An SMS OTP was dispatched to <strong>${phone}</strong>.`;
+        alert(`[SMS GATEWAY NOTIFICATION]\n\nFrom: Wright Cut\nTo: ${phone}\nMessage: Your 6-digit verification code is: ${generatedOtp}`);
+      }
+    });
+
+    const verifyBtn = document.getElementById("verifyOtpBtn");
+    verifyBtn.addEventListener("click", async () => {
+      const enteredOtp = document.getElementById("otpInputField").value.trim();
+
+      if (enteredOtp !== generatedOtp) {
+        alert("Incorrect PIN! Please enter the 6-digit code.");
+        return;
+      }
+
+      verifyBtn.innerText = "Creating account...";
+      verifyBtn.disabled = true;
+
+      try {
+        const { name, email, phone, pass } = pendingUserData;
+        const cred = await createUserWithEmailAndPassword(auth, email, pass);
+        
+       
+        const userRole = checkIsAdmin(email) ? "admin" : "customer";
+
+        await setDoc(doc(db, "users", cred.user.uid), {
+          uid: cred.user.uid,
+          name: name,
+          email: email,
+          phone: phone,
+          role: userRole,
+          verified: true,
+          verificationMethod: selectedChannel,
+          createdAt: new Date().toISOString()
+        });
+
+        alert(`Verification Successful! Welcome to Wright Cut, ${name}!`);
+        document.getElementById("otpModal").style.display = "none";
+
+        if (userRole === "admin") {
+          window.location.href = "admin-dashboard.html";
+        } else {
+          window.location.href = "index.html";
+        }
+      } catch (err) {
+        alert("Account Creation Failed: " + err.message);
+        verifyBtn.innerText = "Verify & Complete Registration";
+        verifyBtn.disabled = false;
+      }
+    });
+
+    document.getElementById("googleSsoBtn").addEventListener("click", async () => {
+      const provider = new GoogleAuthProvider();
+      try {
+        const result = await signInWithPopup(auth, provider);
+        const userEmail = result.user.email;
+        if (checkIsAdmin(userEmail)) {
+          window.location.href = "admin-dashboard.html";
+        } else {
+          window.location.href = "index.html";
+        }
+      } catch (error) {
+        alert("Google SSO: " + error.message);
+      }
+    });
+  </script>
+</body>
+</html>

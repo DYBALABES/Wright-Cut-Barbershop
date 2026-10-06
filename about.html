@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>About Us | Wright Cut</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <nav>
+    <a href="index.html" class="brand">
+      <img src="images/logo.jpg" alt="Logo">
+      <span>WRIGHT CUT</span>
+    </a>
+    <div class="nav-links" id="navLinks">
+      <a href="index.html">Home</a>
+      <a href="services.html">Services & Prices</a>
+      <a href="gallery.html">Gallery</a>
+      <a href="booking.html">Book Appointment</a>
+      <a href="about.html" class="active">About Barbers</a>
+      <a href="admin-dashboard.html" id="adminNavLink" style="display:none;">Admin Panel</a>
+      <a href="login.html">Login / Register</a>
+      <button onclick="handleLogout()">Sign Out</button>
+    </div>
+  </nav>
+
+  <div class="container">
+    <div class="card">
+      <h1 class="title">Our Story</h1>
+      <img src="images/photo11.jpeg" alt="Boikhutso and Kagiso" class="responsive-card-img">
+      <p style="margin-bottom: 1rem;">
+        Established in 2019 in Ga-Rankuwa Zone 2 before relocating to Zone 15 in 2022, Wright Cut Barbershop was founded by <strong>Boikhutso Maswanganyi</strong> and <strong>Kagiso Maluleka</strong>.
+      </p>
+      <p class="text-muted">
+        Both barbers are self-taught craftsmen who refined their expertise by studying master barbers across Africa, including experience working at Legends Barber before launching Wright Cut.
+      </p>
+    </div>
+
+    <!-- GPS Location -->
+    <div class="card card-center">
+      <h2 class="title sub-title">Find Us on GPS</h2>
+      <p class="text-muted mb-1">
+        📍 932 Monato Street, Ga-Rankuwa View, Zone 15, 0208, Gauteng
+      </p>
+
+      <div class="map-wrapper">
+        <iframe 
+          src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3599.7050489416392!2d27.983200000000004!3d-25.548199999999998!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x1ebfcc50748d82e7%3A0xfde49a24d4719d89!2sGa-Rankuwa%20View%20Clinic!5e0!3m2!1sen!2sza!4v1729082592222!5m2!1sen!2sza" 
+          class="map-frame" 
+          allowfullscreen="" 
+          loading="lazy" 
+          referrerpolicy="no-referrer-when-downgrade">
+        </iframe>
+      </div>
+
+      <div class="mt-1">
+        <a href="https://maps.google.com/?q=-25.5482,27.9832" target="_blank" class="btn btn-small">
+          Open in Google Maps Navigation
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <div class="social-bar">
+    <a href="https://instagram.com" target="_blank"><img src="images/gram.jfif" alt="IG"></a>
+    <a href="https://facebook.com" target="_blank"><img src="images/fb.jfif" alt="FB"></a>
+    <a href="https://tiktok.com" target="_blank"><img src="images/tiktok.jfif" alt="TK"></a>
+    <a href="https://twitter.com" target="_blank"><img src="images/twitter.jfif" alt="X"></a>
+    <a href="https://wa.me/27685996843" target="_blank"><img src="images/app.jfif" alt="WA"></a>
+  </div>
+
+  <footer>&copy; 2026 Wright Cut Barbershop</footer>
+  <script type="module" src="script.js"></script>
+</body>
+</html>

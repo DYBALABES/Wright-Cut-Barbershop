@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Our Work | Wright Cut Barbershop</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <nav>
+    <a href="index.html" class="brand">
+      <img src="images/logo.jpg" alt="Logo">
+      <span>WRIGHT CUT</span>
+    </a>
+    <div class="nav-links" id="navLinks">
+      <a href="index.html">Home</a>
+      <a href="services.html">Services</a>
+      <a href="gallery.html" class="active">Gallery</a>
+      <a href="booking.html">Book Appointment</a>
+      <a href="about.html">About Barbers</a>
+      <a href="admin-dashboard.html" id="adminNavLink" style="display:none; color: var(--primary); font-weight:bold;">Admin Panel</a>
+      <a href="login.html">Login / Register</a>
+      <button onclick="handleLogout()">Sign Out</button>
+    </div>
+  </nav>
+
+  <div class="gallery-wrapper">
+    <div class="gallery-header">
+      <h2>Our Work</h2>
+      <div class="gold-line"></div>
+    </div>
+
+    <div class="custom-gallery-grid">
+      <div class="gallery-card">
+        <div class="img-box">
+          <img src="images/photo3.jpg" alt="Mohawk & Black Dye">
+        </div>
+        <div class="photo-title">Mohawk & Black Dye</div>
+      </div>
+
+      <div class="gallery-card">
+        <div class="img-box">
+          <img src="images/photo5.jpg" alt="Cut & Dye">
+        </div>
+        <div class="photo-title">Cut & Dye</div>
+      </div>
+
+      <div class="gallery-card">
+        <div class="img-box">
+          <img src="images/photo4.jpg" alt="Cut & Dye Plus Line">
+        </div>
+        <div class="photo-title">Cut & Dye Plus Line</div>
+      </div>
+
+      <div class="gallery-card">
+        <div class="img-box">
+          <img src="images/photo1.jpg" alt="Classic Taper">
+        </div>
+        <div class="photo-title">Classic Taper</div>
+      </div>
+
+      <div class="gallery-card">
+        <div class="img-box">
+          <img src="images/photo10.jpeg" alt="CUT & DYE COLOUR">
+        </div>
+        <div class="photo-title">CUT & DYE COLOUR</div>
+      </div>
+
+      <div class="gallery-card">
+        <div class="img-box">
+          <img src="images/photo7.jpeg" alt="MOHAWK + DYE">
+        </div>
+        <div class="photo-title">MOHAWK + DYE</div>
+      </div>
+
+      <div class="gallery-card">
+        <div class="img-box">
+          <img src="images/photo2.jpg" alt="CUT & DYE WITH DESIGN">
+        </div>
+        <div class="photo-title">CUT & DYE WITH DESIGN</div>
+      </div>
+
+      <div class="gallery-card">
+        <div class="img-box">
+          <img src="images/photo8.jpg" alt="Bleach + Colour">
+        </div>
+        <div class="photo-title">BLEACH + COLOUR</div>
+      </div>
+      
+      <div class="gallery-card">
+        <div class="img-box">
+          <img src="images/photo6.jpg" alt="CUT & DYE + BEARD">
+        </div>
+        <div class="photo-title">CUT & DYE + BEARD</div>
+      </div>
+    </div>
+
+    <div style="margin: 2rem 0 1rem 0;">
+      <a href="booking.html" class="btn" style="padding: 0.8rem 2.2rem; font-size: 0.95rem;">Book Now</a>
+    </div>
+  </div>
+
+  <div id="lightboxModal" class="lightbox-modal">
+    <span class="lightbox-close" id="lightboxClose">&times;</span>
+    <button class="lightbox-btn lightbox-prev" id="lightboxPrev" aria-label="Previous image">&#10094;</button>
+    <div class="lightbox-content">
+      <img id="lightboxImg" src="" alt="Full view haircut">
+      <div id="lightboxCaption" class="lightbox-caption"></div>
+    </div>
+    <button class="lightbox-btn lightbox-next" id="lightboxNext" aria-label="Next image">&#10095;</button>
+  </div>
+      <div class="social-bar">
+      <a href="https://instagram.com" target="_blank"><img src="images/gram.jfif" alt="IG"></a>
+      <a href="https://facebook.com" target="_blank"><img src="images/fb.jfif" alt="FB"></a>
+      <a href="https://tiktok.com" target="_blank"><img src="images/tiktok.jfif" alt="TK"></a>
+      <a href="https://twitter.com" target="_blank"><img src="images/twitter.jfif" alt="X"></a>
+      <a href="https://wa.me/27685996843" target="_blank"><img src="images/app.jfif" alt="WA"></a>
+    </div>
+
+  <footer>
+    &copy; 2026 Wright Cut Barbershop. All Rights Reserved.
+  </footer>
+
+  <script type="module" src="script.js"></script>
+
+  <script>
+    const cards = document.querySelectorAll('.gallery-card');
+    const modal = document.getElementById('lightboxModal');
+    const modalImg = document.getElementById('lightboxImg');
+    const modalCaption = document.getElementById('lightboxCaption');
+    const prevBtn = document.getElementById('lightboxPrev');
+    const nextBtn = document.getElementById('lightboxNext');
+    const closeBtn = document.getElementById('lightboxClose');
+
+    const galleryItems = [];
+    cards.forEach((card, index) => {
+      const img = card.querySelector('img');
+      const title = card.querySelector('.photo-title').textContent.trim();
+      galleryItems.push({
+        src: img.getAttribute('src'),
+        title: title
+      });
+
+      card.addEventListener('click', () => {
+        openModal(index);
+      });
+    });
+
+    let activeIndex = 0;
+
+    function openModal(index) {
+      activeIndex = index;
+      renderImage();
+      modal.style.display = 'flex';
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeModal() {
+      modal.style.display = 'none';
+      document.body.style.overflow = 'auto';
+    }
+
+    function renderImage() {
+      modalImg.src = galleryItems[activeIndex].src;
+      modalCaption.textContent = galleryItems[activeIndex].title;
+
+      prevBtn.disabled = (activeIndex === 0);
+      nextBtn.disabled = (activeIndex === galleryItems.length - 1);
+    }
+
+    prevBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (activeIndex > 0) {
+        activeIndex--;
+        renderImage();
+      }
+    });
+
+    nextBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (activeIndex < galleryItems.length - 1) {
+        activeIndex++;
+        renderImage();
+      }
+    });
+
+    closeBtn.addEventListener('click', closeModal);
+
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) {
+        closeModal();
+      }
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (modal.style.display === 'flex') {
+        if (e.key === 'ArrowLeft' && activeIndex > 0) {
+          activeIndex--;
+          renderImage();
+        } else if (e.key === 'ArrowRight' && activeIndex < galleryItems.length - 1) {
+          activeIndex++;
+          renderImage();
+        } else if (e.key === 'Escape') {
+          closeModal();
+        }
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Dashboard | Wright Cut</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <nav>
+    <a href="index.html" class="brand">
+      <img src="images/logo.jpg" alt="Logo">
+      <span>WRIGHT CUT ADMIN</span>
+    </a>
+    <div class="nav-links" id="navLinks">
+      <a href="index.html">View Main Site</a>
+      <a href="admin-dashboard.html" class="active">Appointments Table</a>
+      <button onclick="handleLogout()">Sign Out</button>
+    </div>
+  </nav>
+
+  <div class="container">
+    <div class="card">
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; margin-bottom: 1rem;">
+        <h1 class="title" style="margin-bottom: 0;">Live Appointments</h1>
+        <span style="font-size: 0.8rem; color: var(--primary);">Manager: <strong id="userDisplay">Loading...</strong></span>
+      </div>
+      <p class="text-muted" style="margin-bottom: 1rem;">
+      </p>
+
+      <div class="table-responsive">
+        <table>
+          <thead>
+            <tr>
+              <th>Client Email</th>
+              <th>Client Phone</th>
+              <th>Service</th>
+              <th>Date & Time</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="appointmentsTableBody">
+            <!-- Firestore records populate dynamically -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <footer>&copy; 2026 Wright Cut Barbershop</footer>
+
+  <script type="module">
+    import { auth, db } from "./script.js";
+    import { collection, getDocs, updateDoc, doc } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
+
+    async function loadAppointments() {
+      const tbody = document.getElementById("appointmentsTableBody");
+      tbody.innerHTML = "<tr><td colspan='6'>Fetching records from Firestore cloud...</td></tr>";
+
+      try {
+        const querySnapshot = await getDocs(collection(db, "bookings"));
+        tbody.innerHTML = "";
+
+        if (querySnapshot.empty) {
+          tbody.innerHTML = "<tr><td colspan='6'>No active appointments recorded in the cloud.</td></tr>";
+          return;
+        }
+
+        querySnapshot.forEach((docItem) => {
+          const item = docItem.data();
+          const tr = document.createElement("tr");
+          const phone = item.customerPhone || "0820000000";
+
+          tr.innerHTML = `
+            <td>${item.customerEmail}</td>
+            <td><strong>${phone}</strong></td>
+            <td>${item.service}</td>
+            <td>${item.date} @ ${item.time}</td>
+            <td><span class="status-badge status-${item.status}">${item.status}</span></td>
+            <td>
+              <button class="btn btn-success" style="padding: 4px 8px; font-size: 0.75rem; margin-right: 4px;" 
+                onclick="processDecision('${docItem.id}', 'Accepted', '${phone}', '${item.service}', '${item.date}', '${item.time}')">
+                Accept & SMS
+              </button>
+              <button class="btn btn-danger" style="padding: 4px 8px; font-size: 0.75rem;" 
+                onclick="processDecision('${docItem.id}', 'Declined', '${phone}', '${item.service}', '${item.date}', '${item.time}')">
+                Decline & SMS
+              </button>
+            </td>
+          `;
+          tbody.appendChild(tr);
+        });
+      } catch (err) {
+        tbody.innerHTML = `<tr><td colspan='6' style='color:red;'>Failed to load records: ${err.message}</td></tr>`;
+      }
+    }
+
+    window.processDecision = async function(docId, newStatus, phone, service, date, time) {
+      try {
+        await updateDoc(doc(db, "bookings", docId), {
+          status: newStatus
+        });
+
+        let smsText = "";
+        if (newStatus === "Accepted") {
+          smsText = `Hi from Wright Cut Barbershop! Your appointment for ${service} on ${date} at ${time} has been CONFIRMED. Location: 932 Monato St, Zone 15. See you then!`;
+        } else {
+          smsText = `Hi from Wright Cut Barbershop. Unfortunately your appointment request for ${service} on ${date} at ${time} was DECLINED due to full capacity. Please book another slot.`;
+        }
+
+        alert(`[SMS NOTIFICATION DISPATCHED]\n\nTo Customer: ${phone}\nStatus: ${newStatus.toUpperCase()}\n\nContent:\n"${smsText}"`);
+
+        const encodedMsg = encodeURIComponent(smsText);
+        window.open(`sms:${phone}?body=${encodedMsg}`, '_blank');
+
+        loadAppointments();
+      } catch (err) {
+        alert("Failed to update status: " + err.message);
+      }
+    };
+
+    loadAppointments();
+  </script>
+</body>
+</html>

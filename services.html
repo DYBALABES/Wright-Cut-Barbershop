@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Services & Prices | Wright Cut</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <nav>
+    <a href="index.html" class="brand">
+      <img src="images/logo.jpg" alt="Logo">
+      <span>WRIGHT CUT</span>
+    </a>
+    <div class="nav-links" id="navLinks">
+      <a href="index.html">Home</a>
+      <a href="services.html" class="active">Services & Prices</a>
+      <a href="gallery.html">Gallery</a>
+      <a href="booking.html">Book Appointment</a>
+      <a href="about.html">About Barbers</a>
+      <a href="admin-dashboard.html" id="adminNavLink" style="display:none;">Admin Panel</a>
+      <a href="login.html">Login / Register</a>
+      <button onclick="handleLogout()">Sign Out</button>
+    </div>
+  </nav>
+
+  <div class="container">
+    <div class="card">
+      <h1 class="title">Official Price List</h1>
+      <p class="text-muted" style="margin-bottom: 1rem;">Verified shop rates for haircuts, dyes, and trims.</p>
+      <img src="images/Price List.jpeg" alt="Price Board" class="responsive-card-img">
+      <div style="margin-top: 1.5rem;">
+        <a href="booking.html" class="btn btn-full">Proceed to Book</a>
+      </div>
+    </div>
+
+    <div class="social-bar">
+      <a href="https://instagram.com" target="_blank"><img src="images/gram.jfif" alt="IG"></a>
+      <a href="https://facebook.com" target="_blank"><img src="images/fb.jfif" alt="FB"></a>
+      <a href="https://tiktok.com" target="_blank"><img src="images/tiktok.jfif" alt="TK"></a>
+      <a href="https://twitter.com" target="_blank"><img src="images/twitter.jfif" alt="X"></a>
+      <a href="https://wa.me/27685996843" target="_blank"><img src="images/app.jfif" alt="WA"></a>
+    </div>
+  </div>
+
+  <footer>&copy; 2026 Wright Cut Barbershop</footer>
+  <script type="module" src="script.js"></script>
+</body>
+</html>

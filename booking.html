@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Book Appointment | Wright Cut</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <nav>
+    <a href="index.html" class="brand">
+      <img src="images/logo.jpg" alt="Logo">
+      <span>WRIGHT CUT</span>
+    </a>
+    <div class="nav-links" id="navLinks">
+      <a href="index.html">Home</a>
+      <a href="services.html">Services & Prices</a>
+      <a href="gallery.html">Gallery</a>
+      <a href="booking.html" class="active">Book Appointment</a>
+      <a href="about.html">About Barbers</a>
+      <a href="admin-dashboard.html" id="adminNavLink" style="display:none;">Admin Panel</a>
+      <a href="login.html">Login / Register</a>
+      <button onclick="handleLogout()">Sign Out</button>
+    </div>
+  </nav>
+
+  <div class="container">
+    <div class="card">
+      <h1 class="title">Schedule Appointment</h1>
+      <form id="appointmentForm">
+        
+        <div class="form-group">
+          <label>Customer Email Address (For Confirmation)</label>
+          <input type="email" id="bookingEmail" class="form-control" required placeholder="name@example.com" readonly>
+        </div>
+
+        <div class="form-group">
+          <label>Customer Mobile Number (For SMS Confirmation)</label>
+          <input type="tel" id="bookingPhone" class="form-control" required placeholder="0821234567">
+        </div>
+
+        <div class="form-group">
+          <label>Selected Service</label>
+          <select id="serviceSelect" class="form-control" required>
+            <option value="Fade Only (R100)">Fade Only - R100</option>
+            <option value="Fade + Black Dye (R150)">Fade + Black Dye - R150</option>
+            <option value="Chiskop with Blade (R70)">Chiskop with Blade - R70</option>
+            <option value="Beard Colour (R50)">Beard Colour - R50</option>
+            <option value="Bleach Dye (R100)">Bleach Dye - R100</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Select Date</label>
+          <input type="date" id="bookingDate" class="form-control" required>
+          <small class="text-muted" id="dateSlotStatus">Pick a date.</small>
+        </div>
+
+        <label class="text-muted" style="font-size: 0.85rem;">Time Slots</label>
+        <div class="slot-grid" id="slotsContainer">
+          <div class="slot" data-time="08:00 AM">08:00 AM</div>
+          <div class="slot" data-time="09:00 AM">09:00 AM</div>
+          <div class="slot" data-time="10:00 AM">10:00 AM</div>
+          <div class="slot" data-time="11:00 AM">11:00 AM</div>
+          <div class="slot" data-time="12:00 PM">12:00 PM</div>
+          <div class="slot" data-time="02:00 PM">02:00 PM</div>
+          <div class="slot" data-time="03:00 PM">03:00 PM</div>
+          <div class="slot" data-time="04:00 PM">04:00 PM</div>
+          <div class="slot" data-time="05:00 PM">05:00 PM</div>
+        </div>
+
+        <div style="margin-top: 1.5rem;">
+          <button type="submit" class="btn btn-full" id="submitBookingBtn">Confirm & Submit Booking</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="social-bar">
+    <a href="https://instagram.com" target="_blank"><img src="images/gram.jfif" alt="IG"></a>
+    <a href="https://facebook.com" target="_blank"><img src="images/fb.jfif" alt="FB"></a>
+    <a href="https://tiktok.com" target="_blank"><img src="images/tiktok.jfif" alt="TK"></a>
+    <a href="https://twitter.com" target="_blank"><img src="images/twitter.jfif" alt="X"></a>
+    <a href="https://wa.me/27685996843" target="_blank"><img src="images/app.jfif" alt="WA"></a>
+  </div>
+
+  <footer>&copy; 2026 Wright Cut Barbershop</footer>
+
+  <script type="module">
+    import { auth, db } from "./script.js";
+    import { collection, addDoc, doc, getDoc, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
+    import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-auth.js";
+
+    let selectedTimeSlot = "";
+    const slots = document.querySelectorAll(".slot");
+    const dateInput = document.getElementById("bookingDate");
+    const dateSlotStatus = document.getElementById("dateSlotStatus");
+
+    // Prevent booking dates in the past
+    const today = new Date().toISOString().split("T")[0];
+    dateInput.min = today;
+
+    // Slot click handler - tse dileng available
+    slots.forEach(slot => {
+      slot.addEventListener("click", () => {
+        if (slot.classList.contains("taken")) {
+          return; // Strictly unclickable
+        }
+        slots.forEach(s => s.classList.remove("selected"));
+        slot.classList.add("selected");
+        selectedTimeSlot = slot.getAttribute("data-time");
+      });
+    });
+
+    // Checks Cloud Firestore whenever user picks or changes the date
+    dateInput.addEventListener("change", async () => {
+      const chosenDate = dateInput.value;
+      if (!chosenDate) return;
+
+      dateSlotStatus.innerText = "Checking slot availability...";
+      selectedTimeSlot = "";
+
+      // E reset all slots to available first
+      slots.forEach(slot => {
+        slot.classList.remove("taken", "selected");
+        slot.innerText = slot.getAttribute("data-time");
+      });
+
+      try {
+        //  Query Firestore for existing bookings on this specific day
+        const bookingsRef = collection(db, "bookings");
+        const q = query(bookingsRef, where("date", "==", chosenDate));
+        const querySnapshot = await getDocs(q);
+
+        let takenCount = 0;
+        querySnapshot.forEach(docSnap => {
+          const bookingData = docSnap.data();
+          // Any slot that is Pending or Accepted is considered taken
+          if (bookingData.status !== "Declined" && bookingData.time) {
+            slots.forEach(slot => {
+              if (slot.getAttribute("data-time") === bookingData.time) {
+                slot.classList.add("taken");
+                slot.innerText = `${bookingData.time} (Taken)`;
+                takenCount++;
+              }
+            });
+          }
+        });
+
+        dateSlotStatus.innerText = takenCount > 0 
+          ? `${takenCount} slot(s) already booked on this day. Please select an available gold slot.`
+          : "All slots are available for this date!";
+
+      } catch (err) {
+        console.error("Availability lookup error:", err);
+        dateSlotStatus.innerText = "Select an available time slot below.";
+      }
+    });
+
+    // Instant Cache Pre-fill
+    const cachedUserStr = localStorage.getItem("wc_cached_user");
+    if (cachedUserStr) {
+      try {
+        const cachedUser = JSON.parse(cachedUserStr);
+        if (cachedUser.email) {
+          document.getElementById("bookingEmail").value = cachedUser.email;
+        }
+      } catch (e) {
+        console.warn("Cached user parse error:", e);
+      }
+    }
+
+    // Firebase Auth State & Phone Lookup
+    onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        document.getElementById("bookingEmail").value = user.email || "";
+
+        try {
+          const userSnap = await getDoc(doc(db, "users", user.uid));
+          if (userSnap.exists() && userSnap.data().phone) {
+            document.getElementById("bookingPhone").value = userSnap.data().phone;
+          }
+        } catch(e) {
+          console.log("Profile read error:", e);
+        }
+      }
+    });
+
+    // Submit Booking
+    document.getElementById("appointmentForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const user = auth.currentUser;
+      const email = document.getElementById("bookingEmail").value.trim();
+      const phone = document.getElementById("bookingPhone").value.trim();
+      const date = document.getElementById("bookingDate").value;
+      const service = document.getElementById("serviceSelect").value;
+
+      if (!selectedTimeSlot) {
+        alert("Please pick an available time slot before continuing.");
+        return;
+      }
+
+      if (!email || !phone) {
+        alert("Please provide both email and phone number for confirmation.");
+        return;
+      }
+
+      const submitBtn = document.getElementById("submitBookingBtn");
+      submitBtn.innerText = "Submitting Appointment...";
+      submitBtn.disabled = true;
+
+      try {
+        await addDoc(collection(db, "bookings"), {
+          userId: user ? user.uid : "guest",
+          customerEmail: email,
+          customerPhone: phone,
+          service: service,
+          date: date,
+          time: selectedTimeSlot,
+          status: "Pending",
+          createdAt: new Date().toISOString()
+        });
+
+        alert(`Appointment submitted successfully!\n\nService: ${service}\nDate: ${date} @ ${selectedTimeSlot}\n\nConfirmation will be sent to:\nEmail: ${email}\nSMS: ${phone}`);
+        window.location.href = "index.html";
+      } catch (err) {
+        alert("Failed to submit appointment: " + err.message);
+        submitBtn.innerText = "Confirm & Submit Booking";
+        submitBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
