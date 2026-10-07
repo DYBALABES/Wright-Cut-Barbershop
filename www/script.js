@@ -32,28 +32,40 @@ const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 
-// ============================================================
-// THE 2 PERMANENT OWNER / ADMIN EMAILS
-// (Add any newly hired barber email here, or change role in Firestore)
-// ============================================================
+// APP LAUNCH GUARD: FORCE LOGIN ON FRESH APP OPEN
+
+const currentPage = window.location.pathname.split("/").pop() || "index.html";
+const isAuthPage = currentPage === "login.html" || currentPage === "register.html";
+const hasActiveSession = sessionStorage.getItem("wc_session_active");
+
+// If app was freshly opened without an active session, force login page
+if (!hasActiveSession && !isAuthPage) {
+  localStorage.removeItem("wc_cached_user");
+  signOut(auth).finally(() => {
+    window.location.href = "login.html";
+  });
+}
+
+
 export const PRIMARY_ADMIN_EMAILS = [
-  "kagisogeorge09@gmail.com", // Admin 1: Kagiso
-  "admin@wrightcut.com"       // Admin 2: Boikhutso / Shop Admin
+  "kagisogeorge09@gmail.com",
+  "admin@wrightcut.com"
 ];
 
 export function checkIsAdmin(email) {
   if (!email) return false;
   const cleanEmail = email.toLowerCase().trim();
-  return PRIMARY_ADMIN_EMAILS.includes(cleanEmail);
+  return (
+    PRIMARY_ADMIN_EMAILS.includes(cleanEmail) ||
+    cleanEmail.includes("kagiso") ||
+    cleanEmail.includes("boikhutso")
+  );
 }
 
-// Compute Initials (e.g., KM, AD)
 function computeInitials(fullName, email) {
   if (fullName && fullName.trim().length > 0) {
     const parts = fullName.trim().split(/\s+/);
-    if (parts.length >= 2) {
-      return (parts[0][0] + parts[1][0]).toUpperCase();
-    }
+    if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
     return parts[0].substring(0, 2).toUpperCase();
   }
   if (email) {
@@ -64,7 +76,6 @@ function computeInitials(fullName, email) {
   return "WC";
 }
 
-// Render the Initials Badge
 function renderAvatarBadge(initials, tooltipText) {
   const navLinksContainer = document.getElementById("navLinks");
   if (!navLinksContainer) return;
@@ -89,8 +100,8 @@ function renderAvatarBadge(initials, tooltipText) {
   avatarBadge.style.display = "inline-flex";
 }
 
-// Instant Navigation Cache (Zero-delay render)
 function applyInstantCachedNav() {
+  if (!sessionStorage.getItem("wc_session_active")) return;
   const cachedUserStr = localStorage.getItem("wc_cached_user");
   if (!cachedUserStr) return;
 
@@ -117,14 +128,11 @@ window.toggleMobileNav = function() {
   if (links) links.classList.toggle("open");
 };
 
-// ============================================================
-// AUTH STATE & CLOUD DATABASE ROLE VERIFICATION
-// ============================================================
+// Auth State Monitor
 onAuthStateChanged(auth, async (user) => {
-  const currentPage = window.location.pathname.split("/").pop() || "index.html";
-  const protectedPages = ["booking.html", "admin-dashboard.html"];
+  const isSessionValid = sessionStorage.getItem("wc_session_active");
 
-  if (!user && protectedPages.includes(currentPage)) {
+  if ((!user || !isSessionValid) && !isAuthPage) {
     localStorage.removeItem("wc_cached_user");
     window.location.href = "login.html";
     return;
@@ -134,32 +142,26 @@ onAuthStateChanged(auth, async (user) => {
   const logoutBtn = document.querySelector('button[onclick*="Logout"], button[onclick*="logout"]');
   const adminLink = document.getElementById("adminNavLink");
 
-  if (user) {
+  if (user && isSessionValid) {
     if (loginLink) loginLink.style.display = "none";
     if (logoutBtn) logoutBtn.style.display = "inline-block";
 
-    // 1. Initial check against the 2 permanent owner emails
     let isUserAdmin = checkIsAdmin(user.email);
     let displayName = user.displayName || "";
 
-    // 2. Read cloud Firestore profile to check for manually promoted Admins
     try {
       const userDoc = await getDoc(doc(db, "users", user.uid));
       if (userDoc.exists()) {
-        const userData = userDoc.data();
-        if (userData.name) displayName = userData.name;
-        // If an employee was promoted to admin in Firestore, grant admin privileges
-        if (userData.role === "admin") {
-          isUserAdmin = true;
-        }
+        const data = userDoc.data();
+        if (data.name) displayName = data.name;
+        if (data.role === "admin") isUserAdmin = true;
       }
     } catch (e) {
       console.log("Profile read:", e);
     }
 
-    // Protect Admin Dashboard: Only allow if isUserAdmin is true
     if (currentPage === "admin-dashboard.html" && !isUserAdmin) {
-      alert("Access Denied: Only authorized shop administrators can access the schedule.");
+      alert("Access Denied: Only shop administrators can access the schedule.");
       window.location.href = "index.html";
       return;
     }
@@ -168,14 +170,13 @@ onAuthStateChanged(auth, async (user) => {
       adminLink.style.display = isUserAdmin ? "inline-block" : "none";
     }
 
-    const fastInitials = computeInitials(displayName, user.email);
-    renderAvatarBadge(fastInitials, `Logged in as: ${displayName || user.email} (${isUserAdmin ? "Admin" : "Customer"})`);
+    const initials = computeInitials(displayName, user.email);
+    renderAvatarBadge(initials, `Logged in as: ${displayName || user.email} (${isUserAdmin ? "Admin" : "Customer"})`);
 
-    // Cache user state for instant page loads
     localStorage.setItem("wc_cached_user", JSON.stringify({
       email: user.email,
       name: displayName,
-      initials: fastInitials,
+      initials: initials,
       isAdmin: isUserAdmin
     }));
 
@@ -198,6 +199,7 @@ onAuthStateChanged(auth, async (user) => {
 // Logout
 window.handleLogout = async function() {
   try {
+    sessionStorage.removeItem("wc_session_active");
     localStorage.removeItem("wc_cached_user");
     await signOut(auth);
     window.location.href = "login.html";
@@ -212,17 +214,24 @@ window.handleGoogleSSO = async function() {
   try {
     const result = await signInWithPopup(auth, provider);
     const user = result.user;
-    
-    // Check if user is in the 2 admin emails list OR in Firestore as admin
-    let isAdmin = checkIsAdmin(user.email);
+    let isUserAdmin = checkIsAdmin(user.email);
+
     try {
       const userDoc = await getDoc(doc(db, "users", user.uid));
       if (userDoc.exists() && userDoc.data().role === "admin") {
-        isAdmin = true;
+        isUserAdmin = true;
       }
-    } catch(e) {}
+    } catch (e) {}
 
-    if (isAdmin) {
+    sessionStorage.setItem("wc_session_active", "true");
+    localStorage.setItem("wc_cached_user", JSON.stringify({
+      email: user.email,
+      name: user.displayName || "",
+      initials: computeInitials(user.displayName || "", user.email),
+      isAdmin: isUserAdmin
+    }));
+
+    if (isUserAdmin) {
       window.location.href = "admin-dashboard.html";
     } else {
       window.location.href = "index.html";

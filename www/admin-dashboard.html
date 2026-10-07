@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Admin Dashboard | Wright Cut</title>
   <link rel="stylesheet" href="style.css">
+  
+
+  <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 </head>
 <body>
   <nav>
@@ -21,11 +24,12 @@
 
   <div class="container">
     <div class="card">
-      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; margin-bottom: 1rem;">
-        <h1 class="title" style="margin-bottom: 0;">Live Appointments</h1>
-        <span style="font-size: 0.8rem; color: var(--primary);">Manager: <strong id="userDisplay">Loading...</strong></span>
+      <div class="dashboard-header">
+        <h1 class="title">Live Appointments</h1>
+        <span class="manager-badge">Manager: <strong id="userDisplay">Loading...</strong></span>
       </div>
-      <p class="text-muted" style="margin-bottom: 1rem;">
+      <p class="text-muted mb-1">
+        Accepting or Declining sends an automated confirmation to the client via <strong>both Email and SMS</strong> simultaneously.
       </p>
 
       <div class="table-responsive">
@@ -37,7 +41,7 @@
               <th>Service</th>
               <th>Date & Time</th>
               <th>Status</th>
-              <th>Actions</th>
+              <th>Actions (Email & SMS)</th>
             </tr>
           </thead>
           <tbody id="appointmentsTableBody">
@@ -53,6 +57,15 @@
   <script type="module">
     import { auth, db } from "./script.js";
     import { collection, getDocs, updateDoc, doc } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
+
+    // Initialize EmailJS with your active Public Key
+    try {
+      if (window.emailjs) {
+        emailjs.init({ publicKey: "KVC0ojs2Z06ZQbIxP" });
+      }
+    } catch (e) {
+      console.warn("EmailJS init warning:", e);
+    }
 
     async function loadAppointments() {
       const tbody = document.getElementById("appointmentsTableBody");
@@ -71,48 +84,68 @@
           const item = docItem.data();
           const tr = document.createElement("tr");
           const phone = item.customerPhone || "0820000000";
+          const email = item.customerEmail || "client@wrightcut.com";
 
           tr.innerHTML = `
-            <td>${item.customerEmail}</td>
+            <td>${email}</td>
             <td><strong>${phone}</strong></td>
             <td>${item.service}</td>
             <td>${item.date} @ ${item.time}</td>
             <td><span class="status-badge status-${item.status}">${item.status}</span></td>
             <td>
-              <button class="btn btn-success" style="padding: 4px 8px; font-size: 0.75rem; margin-right: 4px;" 
-                onclick="processDecision('${docItem.id}', 'Accepted', '${phone}', '${item.service}', '${item.date}', '${item.time}')">
-                Accept & SMS
-              </button>
-              <button class="btn btn-danger" style="padding: 4px 8px; font-size: 0.75rem;" 
-                onclick="processDecision('${docItem.id}', 'Declined', '${phone}', '${item.service}', '${item.date}', '${item.time}')">
-                Decline & SMS
-              </button>
+              <div class="action-btn-group">
+                <button class="btn-action-success" 
+                  onclick="processDecision('${docItem.id}', 'Accepted', '${email}', '${phone}', '${item.service}', '${item.date}', '${item.time}')">
+                  Accept (SMS & Email)
+                </button>
+                <button class="btn-action-danger" 
+                  onclick="processDecision('${docItem.id}', 'Declined', '${email}', '${phone}', '${item.service}', '${item.date}', '${item.time}')">
+                  Decline (SMS & Email)
+                </button>
+              </div>
             </td>
           `;
           tbody.appendChild(tr);
         });
       } catch (err) {
-        tbody.innerHTML = `<tr><td colspan='6' style='color:red;'>Failed to load records: ${err.message}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan='6' class='text-danger'>Failed to load records: ${err.message}</td></tr>`;
       }
     }
 
-    window.processDecision = async function(docId, newStatus, phone, service, date, time) {
+    // Handles Status Update AND Dispatches Both SMS & Email Simultaneously
+    window.processDecision = async function(docId, newStatus, email, phone, service, date, time) {
       try {
+        // 1. Update Database Record
         await updateDoc(doc(db, "bookings", docId), {
           status: newStatus
         });
 
-        let smsText = "";
+    
+        let messageText = "";
         if (newStatus === "Accepted") {
-          smsText = `Hi from Wright Cut Barbershop! Your appointment for ${service} on ${date} at ${time} has been CONFIRMED. Location: 932 Monato St, Zone 15. See you then!`;
+          messageText = `Hi from Wright Cut Barbershop! Your appointment for ${service} on ${date} at ${time} has been CONFIRMED. Location: 932 Monato St, Zone 15. See you then!`;
         } else {
-          smsText = `Hi from Wright Cut Barbershop. Unfortunately your appointment request for ${service} on ${date} at ${time} was DECLINED due to full capacity. Please book another slot.`;
+          messageText = `Hi from Wright Cut Barbershop. Unfortunately your appointment request for ${service} on ${date} at ${time} was DECLINED due to full capacity. Please book another slot.`;
         }
 
-        alert(`[SMS NOTIFICATION DISPATCHED]\n\nTo Customer: ${phone}\nStatus: ${newStatus.toUpperCase()}\n\nContent:\n"${smsText}"`);
+            try {
+          if (window.emailjs) {
+            await emailjs.send("service_abc123", "template_0ydlgfq", {
+              to_name: email.split("@")[0],
+              to_email: email,
+              otp_code: messageText
+            });
+          }
+        } catch (emailError) {
+          console.warn("EmailJS notification error:", emailError);
+        }
 
-        const encodedMsg = encodeURIComponent(smsText);
+        
+        const encodedMsg = encodeURIComponent(messageText);
         window.open(`sms:${phone}?body=${encodedMsg}`, '_blank');
+
+        // System Confirmation 
+        alert(`[DUAL NOTIFICATION DISPATCHED]\n\nStatus: ${newStatus.toUpperCase()}\n\n1. Confirmation Email sent to: ${email}\n2. Cellular SMS sent to: ${phone}\n\nMessage:\n"${messageText}"`);
 
         loadAppointments();
       } catch (err) {

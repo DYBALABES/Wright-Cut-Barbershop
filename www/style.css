@@ -29,7 +29,7 @@ body {
   min-height: 100vh;
 }
 
-/*  Login & Register Pages */
+/* Dedicated Centered Layout for Login & Register Pages */
 .auth-page {
   display: flex;
   flex-direction: column;
@@ -45,7 +45,7 @@ body {
   margin: 0 auto;
 }
 
-/*  NAVIGATION BAR */
+/* TOP HORIZONTAL NAVIGATION  */
 nav {
   position: sticky;
   top: 0;
@@ -131,7 +131,7 @@ nav {
   font-weight: 700;
 }
 
-/*  Initials Badge */
+/* User Circular Initials Badge */
 .user-avatar-badge {
   width: 34px;
   height: 34px;
@@ -172,7 +172,8 @@ nav {
   }
 }
 
-/* CONTAINERS & CARDS*/
+/* 
+   CONTAINERS & CARDS */
 .container {
   width: 92%;
   max-width: 1000px;
@@ -206,6 +207,10 @@ nav {
   color: var(--text-muted);
 }
 
+.text-danger {
+  color: var(--danger);
+}
+
 .mb-1 {
   margin-bottom: 0.8rem;
 }
@@ -225,11 +230,11 @@ nav {
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
 }
 
-/* GPS MAP CONTAINER */
+/*  MAP CONTAINER */
 .map-wrapper {
   width: 100%;
   max-width: 480px;
-  height: 220px; 
+  height: 220px;
   margin: 0.5rem auto;
   border-radius: 8px;
   overflow: hidden;
@@ -244,7 +249,7 @@ nav {
   display: block;
 }
 
-/* BUTTONS*/
+/* BUTTONS */
 .btn {
   display: inline-block;
   background: var(--primary);
@@ -274,7 +279,7 @@ nav {
 .btn-secondary { background: var(--surface); color: var(--text-main); border: 1px solid var(--border); }
 .btn-full { width: 100%; }
 
-/* FORM CONTROLS & OTP */
+/*  FORM CONTROLS & OTP CHANNELS*/
 .form-group {
   margin-bottom: 1rem;
 }
@@ -327,7 +332,7 @@ nav {
   box-shadow: 0 0 10px rgba(212, 175, 55, 0.3);
 }
 
-/* REGISTRATION OTP MODAL POPUP*/
+/*  REGISTRATION OTP MODAL POPUP*/
 .otp-modal {
   display: none;
   position: fixed;
@@ -367,7 +372,7 @@ nav {
   width: 100%;
 }
 
-/* BOOKING TIME SLOTS (FREE vs TAKEN) */
+/* BOOKING TIME SLOTS */
 .slot-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -408,7 +413,7 @@ nav {
   box-shadow: none !important;
 }
 
-/* SOCIAL FOOTER */
+/* SOCIAL APPS & FOOTER*/
 .social-bar {
   display: flex;
   justify-content: center;
@@ -432,7 +437,20 @@ footer {
   color: var(--text-muted);
 }
 
-/* ADMIN TABLE & STATUS BADGES*/
+/* ADMIN APPOINTMENTS TABLE & STATUS BADGES*/
+.dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.manager-badge {
+  font-size: 0.8rem;
+  color: var(--primary);
+}
+
 .table-responsive {
   width: 100%;
   overflow-x: auto;
@@ -465,7 +483,46 @@ th {
 .status-Accepted { background: rgba(46, 204, 113, 0.2); color: var(--success); }
 .status-Declined { background: rgba(231, 76, 60, 0.2); color: var(--danger); }
 
-/* GALLERY GRID*/
+/* Buttons for Dual Notification */
+.action-btn-group {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.btn-action-success {
+  background: var(--success);
+  color: #ffffff;
+  border: none;
+  border-radius: 4px;
+  padding: 5px 9px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.btn-action-success:hover {
+  background: #27ae60;
+}
+
+.btn-action-danger {
+  background: var(--danger);
+  color: #ffffff;
+  border: none;
+  border-radius: 4px;
+  padding: 5px 9px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.btn-action-danger:hover {
+  background: #c0392b;
+}
+
+/*  GALLERY GRID */
 .gallery-wrapper {
   max-width: 920px;
   margin: 1.5rem auto;
@@ -568,7 +625,7 @@ th {
   }
 }
 
-/* LIGHTBOX POPUP MODAL*/
+/* LIGHTBOX POPUP MODAL */
 .lightbox-modal {
   display: none;
   position: fixed;

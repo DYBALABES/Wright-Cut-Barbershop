@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Wright Cut</string>
+    <string name="title_activity_main">Wright Cut</string>
+    <string name="package_name">com.wrightcut.app</string>
+    <string name="custom_url_scheme">com.wrightcut.app</string>
+</resources>
