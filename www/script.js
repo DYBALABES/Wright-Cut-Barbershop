@@ -32,21 +32,18 @@ const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 
-// APP LAUNCH GUARD: FORCE LOGIN ON FRESH APP OPEN
-
+// INSTANT APP LAUNCH GUARD
 const currentPage = window.location.pathname.split("/").pop() || "index.html";
 const isAuthPage = currentPage === "login.html" || currentPage === "register.html";
 const hasActiveSession = sessionStorage.getItem("wc_session_active");
 
-// If app was freshly opened without an active session, force login page
+// Instant redirect without waiting for asynchronous network calls
 if (!hasActiveSession && !isAuthPage) {
   localStorage.removeItem("wc_cached_user");
-  signOut(auth).finally(() => {
-    window.location.href = "login.html";
-  });
+  window.location.replace("login.html");
 }
 
-
+// 2 Permanent Admin Owners
 export const PRIMARY_ADMIN_EMAILS = [
   "kagisogeorge09@gmail.com",
   "admin@wrightcut.com"
@@ -134,7 +131,7 @@ onAuthStateChanged(auth, async (user) => {
 
   if ((!user || !isSessionValid) && !isAuthPage) {
     localStorage.removeItem("wc_cached_user");
-    window.location.href = "login.html";
+    window.location.replace("login.html");
     return;
   }
 
@@ -162,7 +159,7 @@ onAuthStateChanged(auth, async (user) => {
 
     if (currentPage === "admin-dashboard.html" && !isUserAdmin) {
       alert("Access Denied: Only shop administrators can access the schedule.");
-      window.location.href = "index.html";
+      window.location.replace("index.html");
       return;
     }
 
@@ -202,7 +199,7 @@ window.handleLogout = async function() {
     sessionStorage.removeItem("wc_session_active");
     localStorage.removeItem("wc_cached_user");
     await signOut(auth);
-    window.location.href = "login.html";
+    window.location.replace("login.html");
   } catch (err) {
     console.error("Sign-out error:", err);
   }
@@ -232,9 +229,9 @@ window.handleGoogleSSO = async function() {
     }));
 
     if (isUserAdmin) {
-      window.location.href = "admin-dashboard.html";
+      window.location.replace("admin-dashboard.html");
     } else {
-      window.location.href = "index.html";
+      window.location.replace("index.html");
     }
   } catch (error) {
     alert("Google Sign-In Error: " + error.message);

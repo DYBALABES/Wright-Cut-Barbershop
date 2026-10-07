@@ -6,7 +6,7 @@
   <title>Admin Dashboard | Wright Cut</title>
   <link rel="stylesheet" href="style.css">
   
-
+  <!-- EmailJS SDK Integration -->
   <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 </head>
 <body>
@@ -28,9 +28,7 @@
         <h1 class="title">Live Appointments</h1>
         <span class="manager-badge">Manager: <strong id="userDisplay">Loading...</strong></span>
       </div>
-      <p class="text-muted mb-1">
-        Accepting or Declining sends an automated confirmation to the client via <strong>both Email and SMS</strong> simultaneously.
-      </p>
+      
 
       <div class="table-responsive">
         <table>
@@ -58,7 +56,6 @@
     import { auth, db } from "./script.js";
     import { collection, getDocs, updateDoc, doc } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
 
-    // Initialize EmailJS with your active Public Key
     try {
       if (window.emailjs) {
         emailjs.init({ publicKey: "KVC0ojs2Z06ZQbIxP" });
@@ -112,40 +109,39 @@
       }
     }
 
-    // Handles Status Update AND Dispatches Both SMS & Email Simultaneously
     window.processDecision = async function(docId, newStatus, email, phone, service, date, time) {
       try {
-        // 1. Update Database Record
+        // 1. Update Database
         await updateDoc(doc(db, "bookings", docId), {
           status: newStatus
         });
 
-    
+        // 2. Compose the Appointment Message
         let messageText = "";
         if (newStatus === "Accepted") {
-          messageText = `Hi from Wright Cut Barbershop! Your appointment for ${service} on ${date} at ${time} has been CONFIRMED. Location: 932 Monato St, Zone 15. See you then!`;
+          messageText = `Great news! Your appointment for ${service} on ${date} at ${time} has been CONFIRMED by the barber.\n\nWe look forward to seeing you at the shop!`;
         } else {
-          messageText = `Hi from Wright Cut Barbershop. Unfortunately your appointment request for ${service} on ${date} at ${time} was DECLINED due to full capacity. Please book another slot.`;
+          messageText = `Unfortunately, your appointment request for ${service} on ${date} at ${time} was DECLINED due to full capacity.\n\nPlease visit our app or website to select another available time slot.`;
         }
 
-            try {
+        //  Send via Appointment Template (template_h03ryyc)
+        try {
           if (window.emailjs) {
-            await emailjs.send("service_abc123", "template_0ydlgfq", {
+            await emailjs.send("service_abc123", "template_h03ryyc", {
               to_name: email.split("@")[0],
               to_email: email,
-              otp_code: messageText
+              appointment_details: messageText
             });
           }
         } catch (emailError) {
           console.warn("EmailJS notification error:", emailError);
         }
 
-        
+        //  Dispatch Native SMS
         const encodedMsg = encodeURIComponent(messageText);
         window.open(`sms:${phone}?body=${encodedMsg}`, '_blank');
 
-        // System Confirmation 
-        alert(`[DUAL NOTIFICATION DISPATCHED]\n\nStatus: ${newStatus.toUpperCase()}\n\n1. Confirmation Email sent to: ${email}\n2. Cellular SMS sent to: ${phone}\n\nMessage:\n"${messageText}"`);
+        alert(`[DUAL NOTIFICATION DISPATCHED]\n\nStatus: ${newStatus.toUpperCase()}\n\n1. Email sent to: ${email}\n2. SMS dispatched to: ${phone}\n\nContent:\n"${messageText}"`);
 
         loadAppointments();
       } catch (err) {
