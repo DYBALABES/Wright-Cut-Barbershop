@@ -5,8 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Admin Dashboard | Wright Cut</title>
   <link rel="stylesheet" href="style.css">
-  
-  <!-- EmailJS SDK Integration -->
   <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 </head>
 <body>
@@ -29,7 +27,6 @@
         <span class="manager-badge">Manager: <strong id="userDisplay">Loading...</strong></span>
       </div>
       
-
       <div class="table-responsive">
         <table>
           <thead>
@@ -39,13 +36,42 @@
               <th>Service</th>
               <th>Date & Time</th>
               <th>Status</th>
-              <th>Actions (Email & SMS)</th>
+              <th>Actions</th>
             </tr>
           </thead>
-          <tbody id="appointmentsTableBody">
-            <!-- Firestore records populate dynamically -->
-          </tbody>
+          <tbody id="appointmentsTableBody"></tbody>
         </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="adminReschedModal" class="otp-modal">
+    <div class="otp-box" style="text-align: left;">
+      <h2 class="title sub-title">Admin Reschedule</h2>
+      <p class="text-muted mb-1" id="adminReschedSummary"></p>
+      
+      <div class="form-group">
+        <label>Select Date</label>
+        <input type="date" id="adminDateInput" class="form-control" required>
+        <small class="text-muted" id="adminSlotStatus">Select date to view availability.</small>
+      </div>
+
+      <label class="text-muted" style="font-size: 0.85rem;">Select Time Slot</label>
+      <div class="slot-grid" id="adminSlotsContainer">
+        <div class="slot adm-slot" data-time="08:00 AM">08:00 AM</div>
+        <div class="slot adm-slot" data-time="09:00 AM">09:00 AM</div>
+        <div class="slot adm-slot" data-time="10:00 AM">10:00 AM</div>
+        <div class="slot adm-slot" data-time="11:00 AM">11:00 AM</div>
+        <div class="slot adm-slot" data-time="12:00 PM">12:00 PM</div>
+        <div class="slot adm-slot" data-time="02:00 PM">02:00 PM</div>
+        <div class="slot adm-slot" data-time="03:00 PM">03:00 PM</div>
+        <div class="slot adm-slot" data-time="04:00 PM">04:00 PM</div>
+        <div class="slot adm-slot" data-time="05:00 PM">05:00 PM</div>
+      </div>
+
+      <div class="mt-1">
+        <button type="button" class="btn btn-full" id="btnAdminConfirmResched">Save & Notify Client</button>
+        <button type="button" class="btn btn-secondary btn-full mt-1" id="btnAdminCancelResched">Cancel</button>
       </div>
     </div>
   </div>
@@ -54,15 +80,81 @@
 
   <script type="module">
     import { auth, db } from "./script.js";
-    import { collection, getDocs, updateDoc, doc } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
+    import { collection, getDocs, updateDoc, doc, query, where } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
 
     try {
       if (window.emailjs) {
         emailjs.init({ publicKey: "KVC0ojs2Z06ZQbIxP" });
       }
-    } catch (e) {
-      console.warn("EmailJS init warning:", e);
-    }
+    } catch (e) {}
+
+    let currentReschedTarget = null;
+    let adminChosenSlot = "";
+
+    const adminDateInput = document.getElementById("adminDateInput");
+    const adminSlotStatus = document.getElementById("adminSlotStatus");
+    const adminSlots = document.querySelectorAll("#adminSlotsContainer .adm-slot");
+    const today = new Date().toISOString().split("T")[0];
+    adminDateInput.min = today;
+
+    adminSlots.forEach(slot => {
+      slot.addEventListener("click", () => {
+        if (slot.classList.contains("taken")) return;
+        adminSlots.forEach(s => s.classList.remove("selected"));
+        slot.classList.add("selected");
+        adminChosenSlot = slot.getAttribute("data-time");
+      });
+    });
+
+    adminDateInput.addEventListener("change", async () => {
+      const chosenDate = adminDateInput.value;
+      if (!chosenDate) return;
+
+      adminChosenSlot = "";
+      adminSlots.forEach(slot => {
+        slot.classList.remove("taken", "selected");
+        slot.innerText = slot.getAttribute("data-time");
+      });
+
+      try {
+        const q = query(collection(db, "bookings"), where("date", "==", chosenDate));
+        const snap = await getDocs(q);
+
+        let takenCount = 0;
+        snap.forEach(docSnap => {
+          const b = docSnap.data();
+          if (b.status !== "Declined" && b.time) {
+            adminSlots.forEach(slot => {
+              if (slot.getAttribute("data-time") === b.time) {
+                slot.classList.add("taken");
+                slot.innerText = `${b.time} (Taken)`;
+                takenCount++;
+              }
+            });
+          }
+        });
+
+        adminSlotStatus.innerText = takenCount > 0 
+          ? `${takenCount} slot(s) booked on this day.`
+          : "All slots are free on this date.";
+      } catch (e) {
+        adminSlotStatus.innerText = "Pick an available slot.";
+      }
+    });
+
+    window.toggleDotsMenu = function(id) {
+      document.querySelectorAll('.dropdown-pop').forEach(d => {
+        if (d.id !== 'drop-' + id) d.classList.remove('show');
+      });
+      const target = document.getElementById('drop-' + id);
+      if (target) target.classList.toggle('show');
+    };
+
+    document.addEventListener('click', (e) => {
+      if (!e.target.classList.contains('dots-btn')) {
+        document.querySelectorAll('.dropdown-pop').forEach(d => d.classList.remove('show'));
+      }
+    });
 
     async function loadAppointments() {
       const tbody = document.getElementById("appointmentsTableBody");
@@ -83,24 +175,36 @@
           const phone = item.customerPhone || "0820000000";
           const email = item.customerEmail || "client@wrightcut.com";
 
+          let actionsCellContent = "";
+
+          if (item.status === "Pending") {
+            actionsCellContent = `
+              <div class="action-btn-group">
+                <button class="btn-action-success" onclick="processDecision('${docItem.id}', 'Accepted', '${email}', '${phone}', '${item.service}', '${item.date}', '${item.time}')">Accept</button>
+                <button class="btn-action-danger" onclick="processDecision('${docItem.id}', 'Declined', '${email}', '${phone}', '${item.service}', '${item.date}', '${item.time}')">Decline</button>
+              </div>
+            `;
+          } else if (item.status === "Accepted") {
+            actionsCellContent = `
+              <div class="dropdown-wrap">
+                <button class="dots-btn" onclick="toggleDotsMenu('${docItem.id}')">⋮</button>
+                <div id="drop-${docItem.id}" class="dropdown-pop">
+                  <button onclick="openAdminReschedModal('${docItem.id}', '${email}', '${phone}', '${item.service}')">📅 Reschedule</button>
+                  <button onclick="adminTriggerCancel('${docItem.id}', '${email}', '${phone}', '${item.service}', '${item.date}', '${item.time}')">❌ Cancel</button>
+                </div>
+              </div>
+            `;
+          } else {
+            actionsCellContent = `<span class="text-muted">-</span>`;
+          }
+
           tr.innerHTML = `
             <td>${email}</td>
             <td><strong>${phone}</strong></td>
             <td>${item.service}</td>
             <td>${item.date} @ ${item.time}</td>
             <td><span class="status-badge status-${item.status}">${item.status}</span></td>
-            <td>
-              <div class="action-btn-group">
-                <button class="btn-action-success" 
-                  onclick="processDecision('${docItem.id}', 'Accepted', '${email}', '${phone}', '${item.service}', '${item.date}', '${item.time}')">
-                  Accept (SMS & Email)
-                </button>
-                <button class="btn-action-danger" 
-                  onclick="processDecision('${docItem.id}', 'Declined', '${email}', '${phone}', '${item.service}', '${item.date}', '${item.time}')">
-                  Decline (SMS & Email)
-                </button>
-              </div>
-            </td>
+            <td>${actionsCellContent}</td>
           `;
           tbody.appendChild(tr);
         });
@@ -111,20 +215,12 @@
 
     window.processDecision = async function(docId, newStatus, email, phone, service, date, time) {
       try {
-        // 1. Update Database
-        await updateDoc(doc(db, "bookings", docId), {
-          status: newStatus
-        });
+        await updateDoc(doc(db, "bookings", docId), { status: newStatus });
 
-        // 2. Compose the Appointment Message
-        let messageText = "";
-        if (newStatus === "Accepted") {
-          messageText = `Great news! Your appointment for ${service} on ${date} at ${time} has been CONFIRMED by the barber.\n\nWe look forward to seeing you at the shop!`;
-        } else {
-          messageText = `Unfortunately, your appointment request for ${service} on ${date} at ${time} was DECLINED due to full capacity.\n\nPlease visit our app or website to select another available time slot.`;
-        }
+        let messageText = newStatus === "Accepted"
+          ? `Great news! Your appointment for ${service} on ${date} at ${time} has been CONFIRMED by the barber.\n\nWe look forward to seeing you at the shop!`
+          : `Unfortunately, your appointment request for ${service} on ${date} at ${time} was DECLINED due to full capacity.`;
 
-        //  Send via Appointment Template (template_h03ryyc)
         try {
           if (window.emailjs) {
             await emailjs.send("service_abc123", "template_h03ryyc", {
@@ -133,19 +229,98 @@
               appointment_details: messageText
             });
           }
-        } catch (emailError) {
-          console.warn("EmailJS notification error:", emailError);
-        }
+        } catch (e) {}
 
-        //  Dispatch Native SMS
         const encodedMsg = encodeURIComponent(messageText);
         window.open(`sms:${phone}?body=${encodedMsg}`, '_blank');
-
-        alert(`[DUAL NOTIFICATION DISPATCHED]\n\nStatus: ${newStatus.toUpperCase()}\n\n1. Email sent to: ${email}\n2. SMS dispatched to: ${phone}\n\nContent:\n"${messageText}"`);
-
         loadAppointments();
       } catch (err) {
         alert("Failed to update status: " + err.message);
+      }
+    };
+
+    window.openAdminReschedModal = function(docId, email, phone, service) {
+      currentReschedTarget = { docId, email, phone, service };
+      adminChosenSlot = "";
+      adminDateInput.value = "";
+      adminSlotStatus.innerText = "Select date to view availability.";
+      document.getElementById("adminReschedSummary").innerText = `${service} (${email})`;
+
+      adminSlots.forEach(s => {
+        s.classList.remove("taken", "selected");
+        s.innerText = s.getAttribute("data-time");
+      });
+
+      document.getElementById("adminReschedModal").style.display = "flex";
+    };
+
+    document.getElementById("btnAdminCancelResched").addEventListener("click", () => {
+      document.getElementById("adminReschedModal").style.display = "none";
+      currentReschedTarget = null;
+    });
+
+    document.getElementById("btnAdminConfirmResched").addEventListener("click", async () => {
+      const newDate = adminDateInput.value;
+      if (!newDate) {
+        alert("Please pick a date on the calendar.");
+        return;
+      }
+      if (!adminChosenSlot) {
+        alert("Please select a time slot.");
+        return;
+      }
+
+      try {
+        const { docId, email, phone, service } = currentReschedTarget;
+        await updateDoc(doc(db, "bookings", docId), {
+          date: newDate,
+          time: adminChosenSlot,
+          status: "Accepted"
+        });
+
+        const notifyText = `Shop Notice: Your appointment for ${service} has been RESCHEDULED to ${newDate} at ${adminChosenSlot}. Location: 932 Monato St, Zone 15.`;
+
+        try {
+          if (window.emailjs) {
+            await emailjs.send("service_abc123", "template_h03ryyc", {
+              to_name: email.split("@")[0],
+              to_email: email,
+              appointment_details: notifyText
+            });
+          }
+        } catch (e) {}
+
+        window.open(`sms:${phone}?body=${encodeURIComponent(notifyText)}`, '_blank');
+        document.getElementById("adminReschedModal").style.display = "none";
+        currentReschedTarget = null;
+        loadAppointments();
+      } catch (err) {
+        alert("Reschedule error: " + err.message);
+      }
+    });
+
+    window.adminTriggerCancel = async function(docId, email, phone, service, date, time) {
+      if (!confirm("Are you sure you want to cancel this booking due to an emergency?")) return;
+
+      try {
+        await updateDoc(doc(db, "bookings", docId), { status: "Declined" });
+
+        const cancelText = `Shop Emergency: Your booking for ${service} on ${date} at ${time} had to be CANCELLED due to an unforeseen emergency. We sincerely apologize. Please visit the app to select an alternative slot.`;
+
+        try {
+          if (window.emailjs) {
+            await emailjs.send("service_abc123", "template_h03ryyc", {
+              to_name: email.split("@")[0],
+              to_email: email,
+              appointment_details: cancelText
+            });
+          }
+        } catch (e) {}
+
+        window.open(`sms:${phone}?body=${encodeURIComponent(cancelText)}`, '_blank');
+        loadAppointments();
+      } catch (err) {
+        alert("Cancel error: " + err.message);
       }
     };
 

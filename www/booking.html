@@ -25,12 +25,16 @@
   </nav>
 
   <div class="container">
-    <div class="card">
+    <div class="booking-view-tabs">
+      <button type="button" class="tab-select-btn active" id="tabMakeBooking">New Booking</button>
+      <button type="button" class="tab-select-btn" id="tabCustomerHistory">My Appointments</button>
+    </div>
+
+    <div class="card" id="cardNewBooking">
       <h1 class="title">Schedule Appointment</h1>
       <form id="appointmentForm">
-        
         <div class="form-group">
-          <label>Customer Email Address (For Confirmation)</label>
+          <label>Customer Email Address </label>
           <input type="email" id="bookingEmail" class="form-control" required placeholder="name@example.com" readonly>
         </div>
 
@@ -53,7 +57,7 @@
         <div class="form-group">
           <label>Select Date</label>
           <input type="date" id="bookingDate" class="form-control" required>
-          <small class="text-muted" id="dateSlotStatus">Pick a date.</small>
+
         </div>
 
         <label class="text-muted" style="font-size: 0.85rem;">Time Slots</label>
@@ -70,9 +74,45 @@
         </div>
 
         <div style="margin-top: 1.5rem;">
-          <button type="submit" class="btn btn-full" id="submitBookingBtn">Confirm & Submit Booking</button>
+          <button type="submit" class="btn btn-full" id="submitBookingBtn">Confirm & Submit</button>
         </div>
       </form>
+    </div>
+
+    <div class="card" id="cardCustomerHistory" style="display: none;">
+      <h1 class="title">My Appointments</h1>
+      <div id="customerAppointmentsList">Loading appointments...</div>
+    </div>
+  </div>
+
+  <div id="rescheduleModal" class="otp-modal">
+    <div class="otp-box" style="text-align: left;">
+      <h2 class="title sub-title">Reschedule Appointment</h2>
+      <p class="text-muted mb-1" id="reschedServiceSummary"></p>
+      
+      <div class="form-group">
+        <label>Select New Date</label>
+        <input type="date" id="reschedDateInput" class="form-control" required>
+        <small class="text-muted" id="reschedSlotStatus">Choose a date.</small>
+      </div>
+
+      <label class="text-muted" style="font-size: 0.85rem;">Select Available Time Slot</label>
+      <div class="slot-grid" id="reschedSlotsContainer">
+        <div class="slot resched-slot" data-time="08:00 AM">08:00 AM</div>
+        <div class="slot resched-slot" data-time="09:00 AM">09:00 AM</div>
+        <div class="slot resched-slot" data-time="10:00 AM">10:00 AM</div>
+        <div class="slot resched-slot" data-time="11:00 AM">11:00 AM</div>
+        <div class="slot resched-slot" data-time="12:00 PM">12:00 PM</div>
+        <div class="slot resched-slot" data-time="02:00 PM">02:00 PM</div>
+        <div class="slot resched-slot" data-time="03:00 PM">03:00 PM</div>
+        <div class="slot resched-slot" data-time="04:00 PM">04:00 PM</div>
+        <div class="slot resched-slot" data-time="05:00 PM">05:00 PM</div>
+      </div>
+
+      <div class="mt-1">
+        <button type="button" class="btn btn-full" id="btnConfirmCustomerResched">Confirm New Date & Time</button>
+        <button type="button" class="btn btn-secondary btn-full mt-1" id="btnCancelCustomerResched">Cancel</button>
+      </div>
     </div>
   </div>
 
@@ -88,46 +128,74 @@
 
   <script type="module">
     import { auth, db } from "./script.js";
-    import { collection, addDoc, doc, getDoc, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
+    import { collection, addDoc, doc, getDoc, query, where, getDocs, updateDoc } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
     import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-auth.js";
 
     let selectedTimeSlot = "";
-    const slots = document.querySelectorAll(".slot");
+    let reschedSelectedSlot = "";
+    let activeRescheduleDocId = null;
+
+    const slots = document.querySelectorAll("#slotsContainer .slot");
+    const reschedSlots = document.querySelectorAll("#reschedSlotsContainer .resched-slot");
+
     const dateInput = document.getElementById("bookingDate");
     const dateSlotStatus = document.getElementById("dateSlotStatus");
+    const reschedDateInput = document.getElementById("reschedDateInput");
+    const reschedSlotStatus = document.getElementById("reschedSlotStatus");
 
-    // Prevent booking dates in the past
     const today = new Date().toISOString().split("T")[0];
     dateInput.min = today;
+    reschedDateInput.min = today;
 
-    // Slot click handler - tse dileng available
+    const tabMake = document.getElementById("tabMakeBooking");
+    const tabHistory = document.getElementById("tabCustomerHistory");
+    const cardMake = document.getElementById("cardNewBooking");
+    const cardHistory = document.getElementById("cardCustomerHistory");
+
+    tabMake.addEventListener("click", () => {
+      tabMake.classList.add("active");
+      tabHistory.classList.remove("active");
+      cardMake.style.display = "block";
+      cardHistory.style.display = "none";
+    });
+
+    tabHistory.addEventListener("click", () => {
+      tabHistory.classList.add("active");
+      tabMake.classList.remove("active");
+      cardMake.style.display = "none";
+      cardHistory.style.display = "block";
+      loadCustomerAppointments();
+    });
+
     slots.forEach(slot => {
       slot.addEventListener("click", () => {
-        if (slot.classList.contains("taken")) {
-          return; // Strictly unclickable
-        }
+        if (slot.classList.contains("taken")) return;
         slots.forEach(s => s.classList.remove("selected"));
         slot.classList.add("selected");
         selectedTimeSlot = slot.getAttribute("data-time");
       });
     });
 
-    // Checks Cloud Firestore whenever user picks or changes the date
+    reschedSlots.forEach(slot => {
+      slot.addEventListener("click", () => {
+        if (slot.classList.contains("taken")) return;
+        reschedSlots.forEach(s => s.classList.remove("selected"));
+        slot.classList.add("selected");
+        reschedSelectedSlot = slot.getAttribute("data-time");
+      });
+    });
+
     dateInput.addEventListener("change", async () => {
       const chosenDate = dateInput.value;
       if (!chosenDate) return;
 
-      dateSlotStatus.innerText = "Checking slot availability...";
       selectedTimeSlot = "";
-
-      // E reset all slots to available first
       slots.forEach(slot => {
         slot.classList.remove("taken", "selected");
         slot.innerText = slot.getAttribute("data-time");
       });
 
       try {
-        //  Query Firestore for existing bookings on this specific day
         const bookingsRef = collection(db, "bookings");
         const q = query(bookingsRef, where("date", "==", chosenDate));
         const querySnapshot = await getDocs(q);
@@ -135,7 +203,6 @@
         let takenCount = 0;
         querySnapshot.forEach(docSnap => {
           const bookingData = docSnap.data();
-          // Any slot that is Pending or Accepted is considered taken
           if (bookingData.status !== "Declined" && bookingData.time) {
             slots.forEach(slot => {
               if (slot.getAttribute("data-time") === bookingData.time) {
@@ -148,45 +215,161 @@
         });
 
         dateSlotStatus.innerText = takenCount > 0 
-          ? `${takenCount} slot(s) already booked on this day. Please select an available gold slot.`
+          ? `${takenCount} slot(s) already booked. Please choose an available gold slot.`
           : "All slots are available for this date!";
-
       } catch (err) {
-        console.error("Availability lookup error:", err);
         dateSlotStatus.innerText = "Select an available time slot below.";
       }
     });
 
-    // Instant Cache Pre-fill
+    reschedDateInput.addEventListener("change", async () => {
+      const chosenDate = reschedDateInput.value;
+      if (!chosenDate) return;
+
+      reschedSelectedSlot = "";
+      reschedSlots.forEach(slot => {
+        slot.classList.remove("taken", "selected");
+        slot.innerText = slot.getAttribute("data-time");
+      });
+
+      try {
+        const bookingsRef = collection(db, "bookings");
+        const q = query(bookingsRef, where("date", "==", chosenDate));
+        const querySnapshot = await getDocs(q);
+
+        let takenCount = 0;
+        querySnapshot.forEach(docSnap => {
+          const bookingData = docSnap.data();
+          if (bookingData.status !== "Declined" && bookingData.time) {
+            reschedSlots.forEach(slot => {
+              if (slot.getAttribute("data-time") === bookingData.time) {
+                slot.classList.add("taken");
+                slot.innerText = `${bookingData.time} (Taken)`;
+                takenCount++;
+              }
+            });
+          }
+        });
+
+        reschedSlotStatus.innerText = takenCount > 0 
+          ? `${takenCount} slot(s) already taken on this date.`
+          : "All slots are available on this date!";
+      } catch (err) {
+        reschedSlotStatus.innerText = "Select an available slot below.";
+      }
+    });
+
     const cachedUserStr = localStorage.getItem("wc_cached_user");
     if (cachedUserStr) {
       try {
         const cachedUser = JSON.parse(cachedUserStr);
-        if (cachedUser.email) {
-          document.getElementById("bookingEmail").value = cachedUser.email;
-        }
-      } catch (e) {
-        console.warn("Cached user parse error:", e);
-      }
+        if (cachedUser.email) document.getElementById("bookingEmail").value = cachedUser.email;
+      } catch (e) {}
     }
 
-    // Firebase Auth State & Phone Lookup
     onAuthStateChanged(auth, async (user) => {
       if (user) {
         document.getElementById("bookingEmail").value = user.email || "";
-
         try {
           const userSnap = await getDoc(doc(db, "users", user.uid));
           if (userSnap.exists() && userSnap.data().phone) {
             document.getElementById("bookingPhone").value = userSnap.data().phone;
           }
-        } catch(e) {
-          console.log("Profile read error:", e);
-        }
+        } catch (e) {}
       }
     });
 
-    // Submit Booking
+    async function loadCustomerAppointments() {
+      const container = document.getElementById("customerAppointmentsList");
+      const user = auth.currentUser;
+      if (!user) {
+        container.innerHTML = "<p class='text-muted'>Please log in to view appointments.</p>";
+        return;
+      }
+
+      container.innerHTML = "Fetching your bookings...";
+
+      try {
+        const q = query(collection(db, "bookings"), where("customerEmail", "==", user.email));
+        const snap = await getDocs(q);
+
+        if (snap.empty) {
+          container.innerHTML = "<p class='text-muted'>You have no bookings recorded yet.</p>";
+          return;
+        }
+
+        container.innerHTML = "";
+        snap.forEach(docItem => {
+          const b = docItem.data();
+          const card = document.createElement("div");
+          card.className = "customer-appt-card";
+
+          const canReschedule = b.status !== "Declined";
+
+          card.innerHTML = `
+            <div class="customer-appt-details">
+              <strong>${b.service}</strong>
+
+              <span class="status-badge status-${b.status}" style="width: fit-content; margin-top: 4px;">${b.status}</span>
+            </div>
+            <div>
+              ${canReschedule ? `<button class="btn btn-secondary btn-small" onclick="triggerCustomerRescheduleModal('${docItem.id}', '${b.service}')">Reschedule</button>` : `<span class="text-muted">Cancelled</span>`}
+            </div>
+          `;
+          container.appendChild(card);
+        });
+      } catch (e) {
+        container.innerHTML = `<p class='text-danger'>Error loading bookings: ${e.message}</p>`;
+      }
+    }
+
+    window.triggerCustomerRescheduleModal = function(docId, serviceName) {
+      activeRescheduleDocId = docId;
+      reschedSelectedSlot = "";
+      reschedDateInput.value = "";
+      reschedSlotStatus.innerText = "Pick a date to view available time slots.";
+      document.getElementById("reschedServiceSummary").innerText = "Service: " + serviceName;
+      
+      reschedSlots.forEach(s => {
+        s.classList.remove("taken", "selected");
+        s.innerText = s.getAttribute("data-time");
+      });
+
+      document.getElementById("rescheduleModal").style.display = "flex";
+    };
+
+    document.getElementById("btnCancelCustomerResched").addEventListener("click", () => {
+      document.getElementById("rescheduleModal").style.display = "none";
+      activeRescheduleDocId = null;
+    });
+
+    document.getElementById("btnConfirmCustomerResched").addEventListener("click", async () => {
+      const newDate = reschedDateInput.value;
+      if (!newDate) {
+        alert("Please pick a date on the calendar.");
+        return;
+      }
+      if (!reschedSelectedSlot) {
+        alert("Please select an available time slot.");
+        return;
+      }
+
+      try {
+        await updateDoc(doc(db, "bookings", activeRescheduleDocId), {
+          date: newDate,
+          time: reschedSelectedSlot,
+          status: "Pending"
+        });
+
+        alert("Reschedule request submitted! Your new appointment date has been set to Pending for confirmation.");
+        document.getElementById("rescheduleModal").style.display = "none";
+        activeRescheduleDocId = null;
+        loadCustomerAppointments();
+      } catch (err) {
+        alert("Reschedule error: " + err.message);
+      }
+    });
+
     document.getElementById("appointmentForm").addEventListener("submit", async (e) => {
       e.preventDefault();
       const user = auth.currentUser;
@@ -197,11 +380,6 @@
 
       if (!selectedTimeSlot) {
         alert("Please pick an available time slot before continuing.");
-        return;
-      }
-
-      if (!email || !phone) {
-        alert("Please provide both email and phone number for confirmation.");
         return;
       }
 
