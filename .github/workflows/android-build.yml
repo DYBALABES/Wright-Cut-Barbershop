@@ -1,4 +1,4 @@
-name: Android CI Build
+name: Android CI Build & Automated Tests
 
 on:
   push:
@@ -7,20 +7,23 @@ on:
     branches: [ main ]
 
 jobs:
-  build:
+  test_and_build:
     runs-on: ubuntu-latest
 
     steps:
     - name: Checkout Source Code
       uses: actions/checkout@v4
 
-    - name: Set up Node.js
+    - name: Set up Node.js 22
       uses: actions/setup-node@v4
       with:
         node-version: 22
 
     - name: Install NPM Dependencies
       run: npm install
+
+    - name: Run Automated Unit Tests (Validation & Slot Concurrency)
+      run: node test-suite.js
 
     - name: Sync Capacitor & Generate Plugin Bridges
       run: |
