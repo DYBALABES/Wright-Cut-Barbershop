@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Account Settings | Wright Cut</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <nav>
+    <a href="index.html" class="brand">
+      <img src="images/logo.jpg" alt="Logo">
+      <span>WRIGHT CUT</span>
+    </a>
+    <div class="nav-links" id="navLinks">
+      <a href="index.html">Home</a>
+      <a href="services.html">Services & Prices</a>
+      <a href="gallery.html">Gallery</a>
+      <a href="booking.html">Book Appointment</a>
+      <a href="about.html">About Barbers</a>
+      <a href="settings.html" class="active">Settings</a>
+      <a href="admin-dashboard.html" id="adminNavLink" style="display:none;">Admin Panel</a>
+      <a href="login.html">Login / Register</a>
+      <button onclick="handleLogout()">Sign Out</button>
+    </div>
+  </nav>
+
+  <div id="toastContainer" class="toast-container"></div>
+
+  <div class="container">
+    <div class="card">
+      <h1 class="title">User & App Settings</h1>
+      <p class="text-muted mb-1">
+        Customise your contact profile, booking notifications, and application preferences. Changes persist across application restarts.
+      </p>
+
+      <form id="settingsForm">
+        <h2 class="settings-subheading">Personal Profile</h2>
+        <div class="form-group">
+          <label>Display Name</label>
+          <input type="text" id="settingDisplayName" class="form-control" required placeholder="Your full name">
+        </div>
+        <div class="form-group">
+          <label>Contact Phone (For SMS Confirmations)</label>
+          <input type="tel" id="settingPhone" class="form-control" required placeholder="0821234567">
+        </div>
+        <div class="form-group">
+          <label>Email Address (Managed by Firebase Auth)</label>
+          <input type="email" id="settingEmail" class="form-control" readonly>
+        </div>
+
+        <h2 class="settings-subheading mt-1">Notification Preferences</h2>
+        <div class="setting-toggle-row">
+          <div>
+            <strong>Email Notifications</strong>
+            <p class="text-muted small-text">Receive booking updates and receipts via email</p>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="toggleEmailNotif" checked>
+            <span class="slider round"></span>
+          </label>
+        </div>
+
+        <div class="setting-toggle-row">
+          <div>
+            <strong>SMS Dispatch Alerts</strong>
+            <p class="text-muted small-text">Send cellular text messages when status changes</p>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="toggleSmsNotif" checked>
+            <span class="slider round"></span>
+          </label>
+        </div>
+
+        <h2 class="settings-subheading mt-1">Grooming & App Defaults</h2>
+        <div class="form-group">
+          <label>Preferred Barber</label>
+          <select id="settingPreferredBarber" class="form-control">
+            <option value="any">First Available Barber</option>
+            <option value="Kagiso Maluleka">Kagiso Maluleka</option>
+            <option value="Boikhutso Maswanganyi">Boikhutso Maswanganyi</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Favorite Regular Cut</label>
+          <select id="settingFavService" class="form-control">
+            <option value="srv_fade_only">Fade Only - R100</option>
+            <option value="srv_fade_dye">Fade + Black Dye - R150</option>
+            <option value="srv_chiskop_blade">Chiskop with Blade - R70</option>
+            <option value="srv_beard_colour">Beard Colour - R50</option>
+            <option value="srv_bleach_dye">Bleach Dye - R100</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Schedule Display Density</label>
+          <select id="settingDensity" class="form-control">
+            <option value="comfortable">Comfortable (Standard)</option>
+            <option value="compact">Compact (Dense Data View)</option>
+          </select>
+        </div>
+
+        <div class="mt-1">
+          <button type="submit" class="btn btn-full" id="btnSaveSettings">Save Preferences</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <footer>&copy; 2026 Wright Cut Barbershop. All Rights Reserved.</footer>
+
+  <script type="module">
+    import { auth, db, showToast } from "./script.js";
+    import { doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
+    import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-auth.js";
+
+    const form = document.getElementById("settingsForm");
+    let currentUid = null;
+
+    function applyLocalPreferences(settings) {
+      if (!settings) return;
+      if (settings.density === "compact") {
+        document.body.classList.add("density-compact");
+      } else {
+        document.body.classList.remove("density-compact");
+      }
+    }
+
+    onAuthStateChanged(auth, async (user) => {
+      if (!user) {
+        window.location.replace("login.html");
+        return;
+      }
+
+      currentUid = user.uid;
+      document.getElementById("settingEmail").value = user.email || "";
+
+      const cached = localStorage.getItem("wc_user_settings");
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          document.getElementById("settingDisplayName").value = parsed.name || "";
+          document.getElementById("settingPhone").value = parsed.phone || "";
+          document.getElementById("toggleEmailNotif").checked = parsed.emailNotif !== false;
+          document.getElementById("toggleSmsNotif").checked = parsed.smsNotif !== false;
+          document.getElementById("settingPreferredBarber").value = parsed.preferredBarber || "any";
+          document.getElementById("settingFavService").value = parsed.favService || "srv_fade_only";
+          document.getElementById("settingDensity").value = parsed.density || "comfortable";
+          applyLocalPreferences(parsed);
+        } catch (e) {}
+      }
+
+      try {
+        const userSnap = await getDoc(doc(db, "users", user.uid));
+        if (userSnap.exists()) {
+          const data = userSnap.data();
+          const s = data.settings || {};
+          document.getElementById("settingDisplayName").value = data.name || "";
+          document.getElementById("settingPhone").value = data.phone || "";
+          document.getElementById("toggleEmailNotif").checked = s.emailNotif !== false;
+          document.getElementById("toggleSmsNotif").checked = s.smsNotif !== false;
+          document.getElementById("settingPreferredBarber").value = s.preferredBarber || "any";
+          document.getElementById("settingFavService").value = s.favService || "srv_fade_only";
+          document.getElementById("settingDensity").value = s.density || "comfortable";
+
+          const merged = {
+            name: data.name || "",
+            phone: data.phone || "",
+            emailNotif: s.emailNotif !== false,
+            smsNotif: s.smsNotif !== false,
+            preferredBarber: s.preferredBarber || "any",
+            favService: s.favService || "srv_fade_only",
+            density: s.density || "comfortable"
+          };
+          localStorage.setItem("wc_user_settings", JSON.stringify(merged));
+          applyLocalPreferences(merged);
+        }
+      } catch (err) {
+        showToast("Notice: Loaded preferences from local offline storage.", "warning");
+      }
+    });
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (!currentUid) return;
+
+      const saveBtn = document.getElementById("btnSaveSettings");
+      saveBtn.disabled = true;
+      saveBtn.innerText = "Saving Preferences...";
+
+      const updated = {
+        name: document.getElementById("settingDisplayName").value.trim(),
+        phone: document.getElementById("settingPhone").value.trim(),
+        emailNotif: document.getElementById("toggleEmailNotif").checked,
+        smsNotif: document.getElementById("toggleSmsNotif").checked,
+        preferredBarber: document.getElementById("settingPreferredBarber").value,
+        favService: document.getElementById("settingFavService").value,
+        density: document.getElementById("settingDensity").value,
+        updatedAt: new Date().toISOString()
+      };
+
+      try {
+        localStorage.setItem("wc_user_settings", JSON.stringify(updated));
+        applyLocalPreferences(updated);
+
+        await setDoc(doc(db, "users", currentUid), {
+          name: updated.name,
+          phone: updated.phone,
+          settings: {
+            emailNotif: updated.emailNotif,
+            smsNotif: updated.smsNotif,
+            preferredBarber: updated.preferredBarber,
+            favService: updated.favService,
+            density: updated.density
+          }
+        }, { merge: true });
+
+        const cachedUser = JSON.parse(localStorage.getItem("wc_cached_user") || "{}");
+        cachedUser.name = updated.name;
+        localStorage.setItem("wc_cached_user", JSON.stringify(cachedUser));
+
+        showToast("Settings successfully saved to Cloud and Device!", "success");
+      } catch (err) {
+        showToast("Cloud sync failed, preferences saved locally: " + err.message, "warning");
+      } finally {
+        saveBtn.disabled = false;
+        saveBtn.innerText = "Save Preferences";
+      }
+    });
+  </script>
+</body>
+</html>

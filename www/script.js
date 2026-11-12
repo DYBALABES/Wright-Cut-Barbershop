@@ -15,10 +15,10 @@ import {
   getDocs, 
   getDoc,
   updateDoc, 
-  doc 
+  doc,
+  runTransaction
 } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
 
-// Firebase Configuration
 const firebaseConfig = {
   apiKey: "AIzaSyCG94vYKYSHrHqJpui1kKeipAiKlyvKH8A",
   authDomain: "wright-cut-db.firebaseapp.com",
@@ -32,18 +32,45 @@ const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 
-// INSTANT APP LAUNCH GUARD
+export function showToast(message, type = "info") {
+  let container = document.getElementById("toastContainer");
+  if (!container) {
+    container = document.createElement("div");
+    container.id = "toastContainer";
+    container.className = "toast-container";
+    document.body.appendChild(container);
+  }
+
+  const toast = document.createElement("div");
+  toast.className = `toast-message toast-${type}`;
+  toast.innerHTML = `<span>${message}</span>`;
+  container.appendChild(toast);
+
+  setTimeout(() => {
+    toast.style.opacity = "0";
+    toast.style.transform = "translateY(-10px)";
+    toast.style.transition = "0.3s";
+    setTimeout(() => toast.remove(), 300);
+  }, 3500);
+}
+
+const savedPref = localStorage.getItem("wc_user_settings");
+if (savedPref) {
+  try {
+    const p = JSON.parse(savedPref);
+    if (p.density === "compact") document.body.classList.add("density-compact");
+  } catch (e) {}
+}
+
 const currentPage = window.location.pathname.split("/").pop() || "index.html";
 const isAuthPage = currentPage === "login.html" || currentPage === "register.html";
 const hasActiveSession = sessionStorage.getItem("wc_session_active");
 
-// Instant redirect without waiting for asynchronous network calls
 if (!hasActiveSession && !isAuthPage) {
   localStorage.removeItem("wc_cached_user");
   window.location.replace("login.html");
 }
 
-// 2 Permanent Admin Owners
 export const PRIMARY_ADMIN_EMAILS = [
   "kagisogeorge09@gmail.com",
   "admin@wrightcut.com"
@@ -113,9 +140,7 @@ function applyInstantCachedNav() {
     if (adminLink && cachedUser.isAdmin) adminLink.style.display = "inline-block";
 
     renderAvatarBadge(cachedUser.initials, `Logged in as: ${cachedUser.name || cachedUser.email}`);
-  } catch (e) {
-    console.warn("Cache parse error:", e);
-  }
+  } catch (e) {}
 }
 
 applyInstantCachedNav();
@@ -125,7 +150,6 @@ window.toggleMobileNav = function() {
   if (links) links.classList.toggle("open");
 };
 
-// Auth State Monitor
 onAuthStateChanged(auth, async (user) => {
   const isSessionValid = sessionStorage.getItem("wc_session_active");
 
@@ -153,9 +177,7 @@ onAuthStateChanged(auth, async (user) => {
         if (data.name) displayName = data.name;
         if (data.role === "admin") isUserAdmin = true;
       }
-    } catch (e) {
-      console.log("Profile read:", e);
-    }
+    } catch (e) {}
 
     if (currentPage === "admin-dashboard.html" && !isUserAdmin) {
       alert("Access Denied: Only shop administrators can access the schedule.");
@@ -176,7 +198,6 @@ onAuthStateChanged(auth, async (user) => {
       initials: initials,
       isAdmin: isUserAdmin
     }));
-
   } else {
     localStorage.removeItem("wc_cached_user");
     if (loginLink) loginLink.style.display = "inline-block";
@@ -193,19 +214,15 @@ onAuthStateChanged(auth, async (user) => {
   }
 });
 
-// Logout
 window.handleLogout = async function() {
   try {
     sessionStorage.removeItem("wc_session_active");
     localStorage.removeItem("wc_cached_user");
     await signOut(auth);
     window.location.replace("login.html");
-  } catch (err) {
-    console.error("Sign-out error:", err);
-  }
+  } catch (err) {}
 };
 
-// Google SSO
 window.handleGoogleSSO = async function() {
   const provider = new GoogleAuthProvider();
   try {
@@ -234,6 +251,6 @@ window.handleGoogleSSO = async function() {
       window.location.replace("index.html");
     }
   } catch (error) {
-    alert("Google Sign-In Error: " + error.message);
+    showToast("Google Sign-In Error: " + error.message, "danger");
   }
 };

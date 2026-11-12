@@ -18,11 +18,14 @@
       <a href="gallery.html">Gallery</a>
       <a href="booking.html" class="active">Book Appointment</a>
       <a href="about.html">About Barbers</a>
+      <a href="settings.html">Settings</a>
       <a href="admin-dashboard.html" id="adminNavLink" style="display:none;">Admin Panel</a>
       <a href="login.html">Login / Register</a>
       <button onclick="handleLogout()">Sign Out</button>
     </div>
   </nav>
+
+  <div id="toastContainer" class="toast-container"></div>
 
   <div class="container">
     <div class="booking-view-tabs">
@@ -34,30 +37,30 @@
       <h1 class="title">Schedule Appointment</h1>
       <form id="appointmentForm">
         <div class="form-group">
-          <label>Customer Email Address </label>
+          <label>Customer Email Address</label>
           <input type="email" id="bookingEmail" class="form-control" required placeholder="name@example.com" readonly>
         </div>
 
         <div class="form-group">
-          <label>Customer Mobile Number (For SMS Confirmation)</label>
+          <label>Mobile Number</label>
           <input type="tel" id="bookingPhone" class="form-control" required placeholder="0821234567">
         </div>
 
         <div class="form-group">
           <label>Selected Service</label>
           <select id="serviceSelect" class="form-control" required>
-            <option value="Fade Only (R100)">Fade Only - R100</option>
-            <option value="Fade + Black Dye (R150)">Fade + Black Dye - R150</option>
-            <option value="Chiskop with Blade (R70)">Chiskop with Blade - R70</option>
-            <option value="Beard Colour (R50)">Beard Colour - R50</option>
-            <option value="Bleach Dye (R100)">Bleach Dye - R100</option>
+            <option value="srv_fade_only" data-name="Fade Only" data-price="100">Fade Only - R100</option>
+            <option value="srv_fade_dye" data-name="Fade + Black Dye" data-price="150">Fade + Black Dye - R150</option>
+            <option value="srv_chiskop_blade" data-name="Chiskop with Blade" data-price="70">Chiskop with Blade - R70</option>
+            <option value="srv_beard_colour" data-name="Beard Colour" data-price="50">Beard Colour - R50</option>
+            <option value="srv_bleach_dye" data-name="Bleach Dye" data-price="100">Bleach Dye - R100</option>
           </select>
         </div>
 
         <div class="form-group">
           <label>Select Date</label>
           <input type="date" id="bookingDate" class="form-control" required>
-
+          <small class="text-muted" id="dateSlotStatus">Pick a date.</small>
         </div>
 
         <label class="text-muted" style="font-size: 0.85rem;">Time Slots</label>
@@ -93,7 +96,7 @@
       <div class="form-group">
         <label>Select New Date</label>
         <input type="date" id="reschedDateInput" class="form-control" required>
-        <small class="text-muted" id="reschedSlotStatus">Choose a date.</small>
+        <small class="text-muted" id="reschedSlotStatus">Choose a date to view available slots.</small>
       </div>
 
       <label class="text-muted" style="font-size: 0.85rem;">Select Available Time Slot</label>
@@ -127,8 +130,8 @@
   <footer>&copy; 2026 Wright Cut Barbershop</footer>
 
   <script type="module">
-    import { auth, db } from "./script.js";
-    import { collection, addDoc, doc, getDoc, query, where, getDocs, updateDoc } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
+    import { auth, db, showToast } from "./script.js";
+    import { collection, doc, getDoc, query, where, getDocs, runTransaction } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
     import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-auth.js";
 
     let selectedTimeSlot = "";
@@ -267,13 +270,25 @@
       } catch (e) {}
     }
 
+    const savedSettings = localStorage.getItem("wc_user_settings");
+    if (savedSettings) {
+      try {
+        const s = JSON.parse(savedSettings);
+        if (s.phone) document.getElementById("bookingPhone").value = s.phone;
+        if (s.favService) document.getElementById("serviceSelect").value = s.favService;
+      } catch (e) {}
+    }
+
     onAuthStateChanged(auth, async (user) => {
       if (user) {
         document.getElementById("bookingEmail").value = user.email || "";
         try {
           const userSnap = await getDoc(doc(db, "users", user.uid));
-          if (userSnap.exists() && userSnap.data().phone) {
-            document.getElementById("bookingPhone").value = userSnap.data().phone;
+          if (userSnap.exists()) {
+            const uData = userSnap.data();
+            if (uData.phone && !document.getElementById("bookingPhone").value) {
+              document.getElementById("bookingPhone").value = uData.phone;
+            }
           }
         } catch (e) {}
       }
@@ -303,17 +318,17 @@
           const b = docItem.data();
           const card = document.createElement("div");
           card.className = "customer-appt-card";
-
+          const statusLower = (b.status || "pending").toLowerCase();
           const canReschedule = b.status !== "Declined";
 
           card.innerHTML = `
             <div class="customer-appt-details">
-              <strong>${b.service}</strong>
-
-              <span class="status-badge status-${b.status}" style="width: fit-content; margin-top: 4px;">${b.status}</span>
+              <strong>${b.serviceName || b.service}</strong>
+              <small class="text-muted">📅 ${b.date} @ ${b.time}</small>
+              <span class="status-badge status-${statusLower}" style="width: fit-content; margin-top: 4px;">${b.status}</span>
             </div>
             <div>
-              ${canReschedule ? `<button class="btn btn-secondary btn-small" onclick="triggerCustomerRescheduleModal('${docItem.id}', '${b.service}')">Reschedule</button>` : `<span class="text-muted">Cancelled</span>`}
+              ${canReschedule ? `<button class="btn btn-secondary btn-small" onclick="triggerCustomerRescheduleModal('${docItem.id}', '${b.serviceName || b.service}')">Reschedule</button>` : `<span class="text-muted">Cancelled</span>`}
             </div>
           `;
           container.appendChild(card);
@@ -346,27 +361,47 @@
     document.getElementById("btnConfirmCustomerResched").addEventListener("click", async () => {
       const newDate = reschedDateInput.value;
       if (!newDate) {
-        alert("Please pick a date on the calendar.");
+        showToast("Please pick a date on the calendar.", "warning");
         return;
       }
       if (!reschedSelectedSlot) {
-        alert("Please select an available time slot.");
+        showToast("Please select an available time slot.", "warning");
         return;
       }
 
+      const slotKey = `${newDate}_${reschedSelectedSlot.replace(/[^a-zA-Z0-9]/g, '')}`;
+      const slotLockRef = doc(db, "slot_locks", slotKey);
+      const apptRef = doc(db, "bookings", activeRescheduleDocId);
+
       try {
-        await updateDoc(doc(db, "bookings", activeRescheduleDocId), {
-          date: newDate,
-          time: reschedSelectedSlot,
-          status: "Pending"
+        await runTransaction(db, async (transaction) => {
+          const lockDoc = await transaction.get(slotLockRef);
+          if (lockDoc.exists() && lockDoc.data().active && lockDoc.data().bookingId !== activeRescheduleDocId) {
+            throw new Error("This slot was just claimed by another client. Please select another slot.");
+          }
+
+          transaction.set(slotLockRef, {
+            active: true,
+            bookingId: activeRescheduleDocId,
+            date: newDate,
+            time: reschedSelectedSlot,
+            updatedAt: new Date().toISOString()
+          });
+
+          transaction.update(apptRef, {
+            date: newDate,
+            time: reschedSelectedSlot,
+            status: "Pending",
+            updatedAt: new Date().toISOString()
+          });
         });
 
-        alert("Reschedule request submitted! Your new appointment date has been set to Pending for confirmation.");
+        showToast("Reschedule submitted! Status changed to Pending for barber confirmation.", "success");
         document.getElementById("rescheduleModal").style.display = "none";
         activeRescheduleDocId = null;
         loadCustomerAppointments();
       } catch (err) {
-        alert("Reschedule error: " + err.message);
+        showToast("Reschedule conflict: " + err.message, "danger");
       }
     });
 
@@ -376,34 +411,63 @@
       const email = document.getElementById("bookingEmail").value.trim();
       const phone = document.getElementById("bookingPhone").value.trim();
       const date = document.getElementById("bookingDate").value;
-      const service = document.getElementById("serviceSelect").value;
+      const selectElem = document.getElementById("serviceSelect");
+      const selectedOption = selectElem.options[selectElem.selectedIndex];
+
+      const serviceId = selectElem.value;
+      const serviceName = selectedOption.getAttribute("data-name") || selectedOption.text;
+      const servicePrice = Number(selectedOption.getAttribute("data-price")) || 100;
 
       if (!selectedTimeSlot) {
-        alert("Please pick an available time slot before continuing.");
+        showToast("Please pick an available time slot before continuing.", "warning");
         return;
       }
 
       const submitBtn = document.getElementById("submitBookingBtn");
-      submitBtn.innerText = "Submitting Appointment...";
+      submitBtn.innerText = "Securing Slot (Atomic Check)...";
       submitBtn.disabled = true;
 
+      const slotKey = `${date}_${selectedTimeSlot.replace(/[^a-zA-Z0-9]/g, '')}`;
+      const slotLockRef = doc(db, "slot_locks", slotKey);
+      const newBookingRef = doc(collection(db, "bookings"));
+
       try {
-        await addDoc(collection(db, "bookings"), {
-          userId: user ? user.uid : "guest",
-          customerEmail: email,
-          customerPhone: phone,
-          service: service,
-          date: date,
-          time: selectedTimeSlot,
-          status: "Pending",
-          createdAt: new Date().toISOString()
+        await runTransaction(db, async (transaction) => {
+          const lockDoc = await transaction.get(slotLockRef);
+          if (lockDoc.exists() && lockDoc.data().active) {
+            throw new Error("This slot was just claimed by another client. Please select a different time slot.");
+          }
+
+          transaction.set(slotLockRef, {
+            active: true,
+            bookingId: newBookingRef.id,
+            date: date,
+            time: selectedTimeSlot,
+            createdAt: new Date().toISOString()
+          });
+
+          transaction.set(newBookingRef, {
+            bookingId: newBookingRef.id,
+            userId: user ? user.uid : "guest",
+            customerEmail: email,
+            customerPhone: phone,
+            serviceId: serviceId,
+            serviceName: serviceName,
+            servicePrice: servicePrice,
+            currency: "ZAR",
+            service: `${serviceName} (R${servicePrice})`,
+            date: date,
+            time: selectedTimeSlot,
+            status: "Pending",
+            createdAt: new Date().toISOString()
+          });
         });
 
-        alert(`Appointment submitted successfully!\n\nService: ${service}\nDate: ${date} @ ${selectedTimeSlot}\n\nConfirmation will be sent to:\nEmail: ${email}\nSMS: ${phone}`);
-        window.location.href = "index.html";
+        showToast("Appointment successfully submitted!", "success");
+        setTimeout(() => { window.location.href = "index.html"; }, 1500);
       } catch (err) {
-        alert("Failed to submit appointment: " + err.message);
-        submitBtn.innerText = "Confirm & Submit Booking";
+        showToast("Booking conflict: " + err.message, "danger");
+        submitBtn.innerText = "Confirm & Submit";
         submitBtn.disabled = false;
       }
     });
